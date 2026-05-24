@@ -1,0 +1,35 @@
+# Unreal generated output
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# Generated project and IDE files
+.idea/
+.vscode/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.code-workspace
+Makefile
+
+# Local tooling and agent configuration
+.ignore
+.ai/
+.agents/
+.codex/
+
+# Per-user Unreal state
+Config/DefaultEditorPerProjectUserSettings.ini
+Content/Collections/
+Content/Developers/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
