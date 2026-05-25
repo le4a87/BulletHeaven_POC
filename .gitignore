@@ -4,6 +4,7 @@ DerivedDataCache/
 Intermediate/
 Saved/
 Build/
+Dist/
 
 # Generated project and IDE files
 .idea/

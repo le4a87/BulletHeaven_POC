@@ -4,19 +4,19 @@
 
 This task board converts the planning-phase review into finite implementation tasks for a playable survivor-style proof of concept. Tasks are ordered to produce the smallest functional combat loop first, then expand enemy pressure, player failure states, feedback, and scalability.
 
-## Verified Baseline
+## Current Gameplay Snapshot
 
-The following observations were confirmed from the project's custom Blueprints:
+The following observations were confirmed from the project's custom Blueprints as of the current playable prototype:
 
 | Asset | Current State |
 | --- | --- |
 | `BP_Player` | Starts a looping fire timer, scans all `BP_Enemy` actors, selects the nearest target, and spawns `BP_Projectile`. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
-| `BP_Projectile` | Contains `ProjectileMovement` with speed `1200`, gravity enabled, no collision/visual component, no damage behavior, and no finite lifespan. |
-| `BP_Enemy` | Character Blueprint with no custom variables or connected gameplay behavior. |
-| `BP_EnemySpawner` | Actor Blueprint with no custom variables or connected gameplay behavior; not present in the loaded level. |
+| `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
+| `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, world-space health presentation, and transient billboarding damage text. |
+| `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the current live-enemy cap defaults to `10`. |
 | Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player`. `BP_Player` derives directly from `Character`, not the project C++ character class. |
 
-All four custom Blueprints compile without warnings or errors. The gaps below are behavioral and architectural work, not compiler remediation.
+The implemented gameplay assets were compiled and play-tested during prototype development. Remaining tasks below track missing survival-loop behavior, readability, and scalability work.
 
 ## Status Key
 
@@ -35,12 +35,13 @@ All four custom Blueprints compile without warnings or errors. The gaps below ar
 | M2: Survival Loop | Enemies spawn repeatedly, chase the player, and can end a run. | `BH-003`, `BH-004` |
 | M3: Readable POC | Health, elapsed survival time, and basic run metrics are visible. | `BH-005` |
 | M4: Horde Readiness | Target acquisition and content ownership are suitable for increasing enemy count. | `BH-006`, `BH-007`, `BH-008` |
+| M5: Population Scaling | Enemy presentation and simulation costs are reduced and a supported path to hundreds of enemies is defined. | `BH-009`, `BH-010`, `BH-011`, `BH-012`, `BH-013` |
 
 ---
 
 ## BH-001: Implement Functional Projectile
 
-**Status:** `Done`  
+**Status:** `Done`
 **Priority:** Critical  
 **Milestone:** M1: Combat Contact  
 **Assets:** `Content/Blueprints/Projectiles/BP_Projectile.uasset`, optionally projectile visual assets
@@ -158,7 +159,7 @@ Turn `BP_Enemy` from a selectable placeholder into a hostile unit that can pursu
 
 ## BH-003: Implement Timed Enemy Spawning And Enemy Registry
 
-**Status:** `Ready`  
+**Status:** `Done`
 **Priority:** High  
 **Milestone:** M2: Survival Loop  
 **Assets:** `Content/Blueprints/Spawners/BP_EnemySpawner.uasset`, `Content/Maps/Map_BulletHeavenPOC.umap`
@@ -200,6 +201,12 @@ Create renewable enemy pressure around the player and establish ownership of act
 - Test start-of-run spawn behavior and cap behavior.
 - Kill enemies repeatedly and verify replacements appear.
 - Run for at least two minutes with debug live-enemy count visible or logged.
+
+### Implementation Record
+
+- Imported from the play-tested project state for publication.
+- Uses a looping timer to attempt enemy spawns and exposes `SpawnRate = 1`, `MaxEnemiesAlive = 10`, and `SpawnDistanceFromPlayer = 1000` defaults.
+- Tracks the live count through the enemy-death notification path so defeated enemies can be replaced.
 
 ---
 
@@ -249,7 +256,7 @@ Make enemy contact a meaningful failure condition by consuming player health and
 
 ## BH-005: Add Minimal Gameplay HUD And Debug Metrics
 
-**Status:** `Blocked` by `BH-003` and `BH-004`  
+**Status:** `Blocked` by `BH-004`
 **Priority:** Medium  
 **Milestone:** M3: Readable POC  
 **Assets:** New or existing UI Blueprint assets, game mode/player as data sources
@@ -290,7 +297,7 @@ Expose enough state to judge whether the survival loop works without inspecting 
 
 ## BH-006: Replace Repeated Global Target Scans
 
-**Status:** `Blocked` by `BH-003`  
+**Status:** `Ready`
 **Priority:** Medium  
 **Milestone:** M4: Horde Readiness  
 **Assets:** `BP_Player`, `BP_EnemySpawner` or selected registry owner
@@ -420,6 +427,157 @@ Define a finite acceptance test for declaring the proof of concept successful be
 
 ---
 
+## BH-009: Profile Live Enemy Population Limits
+
+**Status:** `Ready`
+**Priority:** High
+**Milestone:** M5: Population Scaling
+**Assets:** `BP_EnemySpawner`, test map, performance test notes
+
+### Goal
+
+Measure the current practical live-enemy limit before optimization and identify which systems consume frame time as enemy density increases.
+
+### Scope
+
+- Run combat-heavy test sessions at live-enemy caps of `25`, `50`, `75`, and `100`.
+- Capture `stat unit`, `stat game`, `stat blueprint`, active enemy/projectile counts, and an Unreal Insights trace for the first clearly degraded tier.
+- Hold combat configuration constant while changing only the live-enemy cap.
+- Record the first cap that no longer maintains the selected frame-time target.
+
+### Acceptance Criteria
+
+- Baseline results identify a measured supported cap rather than an assumed value.
+- Results distinguish game-thread, Blueprint, rendering, collision, and projectile pressure where visible in the capture.
+- The highest acceptable cap and first unacceptable cap are documented with the test hardware and configuration.
+
+### Validation
+
+- Complete the four population-tier runs in a fresh play session using the same combat scenario.
+- Add results to this task or a linked performance note.
+
+---
+
+## BH-010: Gate Damage-Text Billboard And Fade Updates
+
+**Status:** `Ready`
+**Priority:** High
+**Milestone:** M5: Population Scaling
+**Assets:** `Content/Blueprints/Enemies/BP_Enemy.uasset`, damage-text presentation owner if refactored
+
+### Goal
+
+Remove hidden floating-damage text from steady-state per-enemy Tick cost.
+
+### Scope
+
+- Update the camera-facing rotation only while damage text is visible, or move transient text display to a pooled presentation manager.
+- Preserve the current short-lived translucent fade behavior and camera-facing readability.
+- Ensure repeated hits refresh the display duration without accumulating latent updates or text actors.
+
+### Acceptance Criteria
+
+- Enemies that are not currently showing damage text perform no billboard work for that text.
+- Damage text still faces the camera, fades quickly, and hides reliably after repeated hits.
+- Performance comparison at the `BH-009` degraded tier shows the change does not add frame cost and reduces damage-feedback overhead under sustained hits.
+
+### Validation
+
+- Test isolated hits, rapid repeated hits, and a dense combat case.
+- Compare Blueprint/game-thread observations before and after the change.
+
+---
+
+## BH-011: Reduce Per-Enemy Health-Bar Widget Cost
+
+**Status:** `Ready`
+**Priority:** High
+**Milestone:** M5: Population Scaling
+**Assets:** `Content/Blueprints/Enemies/BP_Enemy.uasset`, `Content/Blueprints/UI/WBP_ActorHealthBar.uasset`
+
+### Goal
+
+Avoid paying for a world-space UMG health bar on every live enemy throughout combat.
+
+### Scope
+
+- Choose a visibility policy such as damaged-only, nearby-only, selected/targeted-only, or a bounded combination.
+- Disable, remove, or pool health-bar widget work for enemies outside that policy.
+- Retain readable health feedback for enemies the player is actively engaging.
+
+### Acceptance Criteria
+
+- Large groups do not maintain visible/ticking health-bar widgets for every enemy.
+- Health bars appear and update correctly under the selected visibility policy.
+- Re-run of the `BH-009` scenario records the population-tier improvement or residual widget cost.
+
+### Validation
+
+- Test damage, recovery/hide timing if applicable, target changes, and crowded enemy groups.
+
+---
+
+## BH-012: Reduce Per-Enemy Tick And Character Cost
+
+**Status:** `Blocked` by `BH-009`, `BH-010`, and `BH-011`
+**Priority:** Medium
+**Milestone:** M5: Population Scaling
+**Assets:** `BP_Enemy`, enemy movement/animation assets, optional native gameplay code
+
+### Goal
+
+Determine the least disruptive simulation changes needed after presentation costs have been removed from the measured bottleneck.
+
+### Scope
+
+- Review the cost of each enemy being a full `Character` with `CharacterMovement`, skeletal mesh, collision, and zero-interval Blueprint Tick.
+- Apply tick-rate or distance-based throttling where behavior remains acceptable.
+- Configure off-screen animation and visual update policies.
+- If still required by profiling, prototype a lightweight basic-enemy `Pawn` or `Actor` movement implementation instead of `CharacterMovement`.
+
+### Acceptance Criteria
+
+- The chosen enemy representation and tick policy are documented with measured before/after results.
+- Nearby combat remains responsive while distant or off-screen enemies incur reduced update cost.
+- No collision, pursuit, damage, or death regressions appear in the representative load test.
+
+### Validation
+
+- Re-run population tests and compare frame-time categories against `BH-009`.
+- Play-test close-range swarms and off-screen approach behavior.
+
+---
+
+## BH-013: Define Architecture For Hundreds Of Enemies
+
+**Status:** `Blocked` by `BH-009` through `BH-012`
+**Priority:** Medium
+**Milestone:** M5: Population Scaling
+**Assets:** Architecture note and prototype assets/code as selected
+
+### Goal
+
+Select and validate an architecture suitable for several hundred simultaneous basic enemies rather than incrementally extending full Blueprint `Character` actors.
+
+### Scope
+
+- Evaluate a centralized native simulation or Unreal Mass Entity approach for movement, targeting, separation, damage application, and visibility.
+- Define pooling strategy for enemies, projectiles, and transient presentation effects.
+- Define cheaper rendering/collision policies, including simplified visuals, spatial queries, and removal of per-entity widgets.
+- Build the smallest prototype necessary to validate the selected direction against a documented hundreds-of-enemies target.
+
+### Acceptance Criteria
+
+- A target population, frame-time budget, and target hardware are explicit.
+- The selected architecture is justified using the earlier profiling evidence.
+- A prototype reaches the selected high-population scenario or produces quantified evidence for the next design revision.
+
+### Validation
+
+- Run the prototype with the target population and record simulation, rendering, collision, and feedback behavior.
+
+---
+
 ## Recommended Execution Order
 
 | Order | Task | Reason |
@@ -432,6 +590,11 @@ Define a finite acceptance test for declaring the proof of concept successful be
 | 6 | `BH-006` | Prevents the current targeting strategy from defining the horde ceiling. |
 | 7 | `BH-007` | Establishes code ownership before player behavior expands substantially. This decision may be executed earlier if C++ gameplay work begins. |
 | 8 | `BH-008` | Defines the POC completion gate after the loop exists. |
+| 9 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck. |
+| 10 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
+| 11 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
+| 12 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 13 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 
@@ -441,5 +604,6 @@ These features are intentionally excluded from the initial proof-of-concept task
 - Multiple weapons or projectile behaviors.
 - Enemy archetypes, bosses, and authored wave schedules.
 - Object pooling and deeper optimization.
+- High-population enemy architecture implementation beyond the validated `BH-013` prototype.
 - Audio, VFX, animation, and presentation polish.
 - Persistence, meta progression, and packaged-build concerns.
