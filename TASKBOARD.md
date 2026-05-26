@@ -10,9 +10,9 @@ The following observations were confirmed from the project's custom Blueprints a
 
 | Asset | Current State |
 | --- | --- |
-| `BP_Player` | Starts a looping fire timer, scans all `BP_Enemy` actors, selects the nearest target, and spawns `BP_Projectile`. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
+| `BP_Player` | Starts a looping fire timer, scans all `BP_Enemy` actors, selects the nearest target, and spawns `BP_Projectile`. It now processes enemy contact through a `0.75`-second invulnerability window, tracks run-end state, and pauses gameplay at zero health. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
 | `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
-| `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, world-space health presentation, and transient billboarding damage text. |
+| `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, Pawn-overlap contact collision, world-space health presentation, and transient billboarding damage text. |
 | `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the current live-enemy cap defaults to `10`. |
 | Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player`. `BP_Player` derives directly from `Character`, not the project C++ character class. |
 
@@ -212,10 +212,10 @@ Create renewable enemy pressure around the player and establish ownership of act
 
 ## BH-004: Implement Player Damage, Invulnerability Window, And Run End
 
-**Status:** `Ready`  
+**Status:** `Done`
 **Priority:** High  
 **Milestone:** M2: Survival Loop  
-**Assets:** `Content/Blueprints/Characters/BP_Player.uasset`, possibly game mode or UI Blueprint
+**Assets:** `Content/Blueprints/Characters/BP_Player.uasset`, `Content/Blueprints/Enemies/BP_Enemy.uasset`
 
 ### Goal
 
@@ -252,11 +252,21 @@ Make enemy contact a meaningful failure condition by consuming player health and
 - Walk into one enemy and confirm cooldown behavior.
 - Die while multiple enemies overlap and verify the run-end path executes once.
 
+### Implementation Record
+
+- Completed on 2026-05-26.
+- Retained player-owned `Health` and added `ContactDamageInterval = 0.75`, `IsInvulnerable`, and `IsGameOver` state to `BP_Player`.
+- Added a readable `ProcessContactDamage` function: it reads `ContactDamage` from the overlapping `BP_Enemy`, applies one hit per active interval, clears its timer after overlap ends, and clamps lethal health to zero.
+- Added player overlap entry flow that starts damage processing only when no invulnerability window is active, preventing multiple simultaneous enemy overlaps from stacking immediate hits.
+- Configured the enemy capsule to overlap the `Pawn` channel so contact events occur without blocking player movement.
+- On lethal damage, the player clears both contact-damage and projectile-firing timers, marks the run over, and pauses gameplay.
+- Compiled modified Blueprints with warnings treated as errors. In PIE, a controlled `100`-second interval test held player health at `990` during continued multi-enemy overlap after the initial `10`-damage hit; restored production defaults then reached `Health = 0` and `IsGameOver = true` at the `0.75`-second interval.
+
 ---
 
 ## BH-005: Add Minimal Gameplay HUD And Debug Metrics
 
-**Status:** `Blocked` by `BH-004`
+**Status:** `Ready`
 **Priority:** Medium  
 **Milestone:** M3: Readable POC  
 **Assets:** New or existing UI Blueprint assets, game mode/player as data sources

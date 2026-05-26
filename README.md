@@ -10,6 +10,7 @@ This repository is an active prototype. It is intended for gameplay iteration an
 - Automatic targeting and projectile firing.
 - Projectile collision and damage delivery.
 - Enemies that pursue the player, receive damage, and die.
+- Enemy contact damage with a short player invulnerability window and paused run-end state.
 - Timed enemy-spawning setup with a configurable live-enemy cap.
 - World-space enemy health and floating damage feedback.
 - Billboarded, short-lived damage text for readability during combat.
