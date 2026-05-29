@@ -28,6 +28,7 @@ This repository is an active prototype. It is intended for gameplay iteration an
 | `Content/Blueprints/UI/` | World health and damage feedback widgets. |
 | `Source/BulletHeavenPOC/` | Native project and included template/variant code. |
 | `TASKBOARD.md` | Roadmap, acceptance criteria, and performance follow-up tasks. |
+| `docs/IMPLEMENTATION_HISTORY.md` | Completed task summaries and validation notes rolled out of the task board. |
 | `AGENTS.md` | Blueprint cleanliness and validation conventions for automated contributions. |
 
 ## Requirements
@@ -121,6 +122,7 @@ C:\path\to\UnrealEngine\Engine\Build\BatchFiles\RunUAT.bat BuildCookRun ^
 - The project includes Unreal template content and source variants alongside the custom Bullet Heaven gameplay assets.
 - Custom automation/editor integration plugins are intentionally not required by the checked-in project manifest; contributors can enable their preferred local tooling without making it a project dependency.
 - Review [TASKBOARD.md](TASKBOARD.md) before expanding gameplay. It documents current milestones and planned performance work, including live-enemy scaling.
+- Review [docs/IMPLEMENTATION_HISTORY.md](docs/IMPLEMENTATION_HISTORY.md) for completed gameplay-loop and feedback implementation notes.
 - Blueprint modifications should follow [AGENTS.md](AGENTS.md), including readable graph arrangement, avoiding unnecessary Tick work, compilation, saving, and practical validation.
 
 ## Performance Direction

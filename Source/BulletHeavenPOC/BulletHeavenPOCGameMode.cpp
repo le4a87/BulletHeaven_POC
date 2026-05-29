@@ -2,7 +2,9 @@
 
 #include "BulletHeavenPOCGameMode.h"
 
+#include "BHGameplayHUD.h"
+
 ABulletHeavenPOCGameMode::ABulletHeavenPOCGameMode()
 {
-	// stub
+	HUDClass = ABHGameplayHUD::StaticClass();
 }

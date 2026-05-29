@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This task board converts the planning-phase review into finite implementation tasks for a playable survivor-style proof of concept. Tasks are ordered to produce the smallest functional combat loop first, then expand enemy pressure, player failure states, feedback, and scalability.
+This task board converts the planning-phase review into finite implementation tasks for a playable survivor-style proof of concept. It now tracks remaining and active work; completed task summaries are preserved in `docs/IMPLEMENTATION_HISTORY.md`.
 
 ## Current Gameplay Snapshot
 
@@ -14,9 +14,9 @@ The following observations were confirmed from the project's custom Blueprints a
 | `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
 | `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, Pawn-overlap contact collision, world-space health presentation, and transient billboarding damage text. |
 | `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the current live-enemy cap defaults to `10`. |
-| Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player`. `BP_Player` derives directly from `Character`, not the project C++ character class. |
+| Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player` and uses `BHGameplayHUD` for runtime health, time, kill, live-enemy, and game-over readouts. `BP_Player` derives directly from `Character`, not the project C++ character class. |
 
-The implemented gameplay assets were compiled and play-tested during prototype development. Remaining tasks below track missing survival-loop behavior, readability, and scalability work.
+The implemented gameplay assets were compiled and play-tested during prototype development. Remaining tasks below track readability, ownership, test-gate, and scalability work.
 
 ## Status Key
 
@@ -25,7 +25,7 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 | `Ready` | Scope is defined and implementation can begin. |
 | `Blocked` | Requires completion of identified dependency. |
 | `In Progress` | Implementation or validation is underway. |
-| `Done` | Acceptance criteria have been verified in editor/play testing. |
+| `Done` | Acceptance criteria have been verified in editor/play testing, then the summary is moved to `docs/IMPLEMENTATION_HISTORY.md`. |
 
 ## Milestones
 
@@ -39,269 +39,9 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 
 ---
 
-## BH-001: Implement Functional Projectile
+## Completed Work
 
-**Status:** `Done`
-**Priority:** Critical  
-**Milestone:** M1: Combat Contact  
-**Assets:** `Content/Blueprints/Projectiles/BP_Projectile.uasset`, optionally projectile visual assets
-
-### Goal
-
-Make every projectile spawned by `BP_Player` visible, planar, collision-capable, damaging, and self-cleaning.
-
-### Research Required
-
-- Inspect the collision presets already used by the player capsule and enemy capsule, then select a projectile collision profile that overlaps enemies without colliding with the player.
-- Determine whether the proof of concept should use `Apply Damage` or a direct typed call such as `ReceiveProjectileHit`; prefer the smallest contract that supports later enemy variants.
-- Confirm whether the projectile graphic should use a primitive mesh, sprite/flipbook, or existing project material for the first playable loop.
-- Confirm top-down plane behavior by testing `ProjectileGravityScale = 0` and spawn height relative to enemy collision.
-
-### Scope
-
-- Add a collision primitive as the projectile root or collision-driving component.
-- Add a minimal visible representation.
-- Configure `ProjectileMovement` for straight top-down travel with gravity disabled.
-- Add configurable projectile `Damage` and finite `LifeSpan` values.
-- On valid enemy collision, deliver damage once and destroy the projectile.
-- Destroy projectiles that never hit before they accumulate outside the play area.
-
-### Out Of Scope
-
-- Piercing, ricochet, homing, area damage, elemental modifiers, or pooled projectiles.
-- Weapon upgrade logic.
-- Enemy death rewards.
-
-### Acceptance Criteria
-
-- A projectile is visible after it spawns.
-- A projectile travels horizontally toward the targeted enemy rather than falling.
-- A projectile collides with `BP_Enemy` and invokes the selected damage interface exactly once.
-- A hit projectile destroys itself.
-- A missed projectile destroys itself after a bounded lifetime.
-- Blueprint compiles without warnings or errors.
-
-### Validation
-
-- Place one `BP_Enemy` in the test map and run Play In Editor.
-- Observe projectiles traveling to and contacting the enemy.
-- Allow shots to miss or remove the enemy, then verify old projectiles do not remain indefinitely.
-
-### Implementation Record
-
-- Completed on 2026-05-23.
-- Added a `CollisionSphere` query-overlap root and a visible sphere mesh child to `BP_Projectile`.
-- Configured straight planar projectile motion at speed `1200` with gravity disabled.
-- Added editable `Damage = 10` and finite `InitialLifeSpan = 3` defaults.
-- Added the hit path `OnComponentBeginOverlap (CollisionSphere)` -> `Cast To BP_Enemy` -> `Apply Damage` -> `Destroy Actor`.
-- Compiled with warnings treated as errors and saved the Blueprint.
-- Ran PIE with the placed enemy present; live projectiles were observed through runtime actor inspection and no Blueprint runtime errors were reported.
-- Actual enemy health reduction/death is deferred to `BH-002`, where `BP_Enemy` will consume the standard damage event.
-
----
-
-## BH-002: Implement Enemy Health, Pursuit, And Death
-
-**Status:** `Done`  
-**Priority:** Critical  
-**Milestone:** M1: Combat Contact  
-**Assets:** `Content/Blueprints/Enemies/BP_Enemy.uasset`
-
-### Goal
-
-Turn `BP_Enemy` from a selectable placeholder into a hostile unit that can pursue the player, receive projectile damage, and die.
-
-### Research Required
-
-- Decide the simplest pursuit implementation for initial hordes: direct planar movement toward player, AI Move To with navigation, or a native movement path. Compare cost and expected enemy counts before committing.
-- Inspect whether `Map_BulletHeavenPOC` provides sufficient navigable play space if nav-based movement is selected.
-- Define the damage contract used by `BH-001`, including health type, death event, and prevention of duplicate death processing.
-- Determine whether enemy-player contact should be handled by the enemy capsule overlap or reserved for the player damage task.
-
-### Scope
-
-- Add configurable `MaxHealth`, current health initialization, movement speed, and contact damage values.
-- Find/store the player reference at a controlled point such as `BeginPlay`, with validity handling.
-- Implement movement toward the player suitable for the selected proof-of-concept approach.
-- Receive projectile damage and decrement health.
-- On zero health, stop participation in targeting/collision and destroy the enemy.
-- Expose a death hook or event usable later by counters, experience, and wave logic.
-
-### Out Of Scope
-
-- Multiple enemy archetypes, attacks beyond contact damage, hit reactions, loot, experience pickups, animations, or object pooling.
-
-### Acceptance Criteria
-
-- A placed enemy moves toward the player during play.
-- Projectile hits reduce enemy health.
-- Enemy destruction occurs once when health reaches zero.
-- Dead enemies no longer remain selectable as a target.
-- Blueprint compiles without warnings or errors.
-
-### Validation
-
-- Test one enemy with health requiring multiple hits.
-- Test lethal and non-lethal hits.
-- Run with no valid player target and verify no repeated runtime errors occur.
-
-### Implementation Record
-
-- Completed on 2026-05-23.
-- Selected direct `CharacterMovement` pursuit for the POC rather than navigation, avoiding NavMesh dependencies before timed spawning work.
-- Added editable `MaxHealth = 30`, `MoveSpeed = 250`, and `ContactDamage = 10`, plus runtime `CurrentHealth`, `PlayerTarget`, and `IsDead` state.
-- Added `OnEnemyDied` as an event dispatcher for future counters, experience, and spawn tracking.
-- Initialized health and cached a valid `BP_Player` target in `BeginPlay`; valid-target guarded Tick movement uses `Add Movement Input`.
-- Added `Event AnyDamage` processing, single-death guarding, death dispatch, and actor destruction on lethal projectile damage.
-- Compiled with warnings treated as errors and ran PIE with the placed enemy; after the multi-hit firing window the enemy was destroyed with no Blueprint/script runtime errors logged.
-
----
-
-## BH-003: Implement Timed Enemy Spawning And Enemy Registry
-
-**Status:** `Done`
-**Priority:** High  
-**Milestone:** M2: Survival Loop  
-**Assets:** `Content/Blueprints/Spawners/BP_EnemySpawner.uasset`, `Content/Maps/Map_BulletHeavenPOC.umap`
-
-### Goal
-
-Create renewable enemy pressure around the player and establish ownership of active enemy references for later targeting and metrics.
-
-### Research Required
-
-- Choose the spawn geometry for the POC: ring around the player, map edge points, or authored spawn points.
-- Determine safe spawn distance bounds so enemies appear off-screen or outside immediate contact range while remaining on valid walkable ground.
-- Decide where the active enemy registry belongs for this scope: spawner-owned array, game-state/game-mode system, or separate combat director Blueprint.
-- Verify how destroyed enemies notify the registry so stale references are pruned reliably.
-- Define initial difficulty knobs: interval, batch size, maximum live enemy count, and optional elapsed-time scaling.
-
-### Scope
-
-- Place one configured spawner in the playable map.
-- Add enemy class, spawn interval, minimum/maximum spawn radius, and maximum active enemy count settings.
-- Spawn enemies repeatedly at valid positions around the player.
-- Maintain an array or equivalent collection of active enemies and remove invalid/dead entries.
-- Add minimal difficulty ramping only if it is a simple exposed value change over elapsed time.
-
-### Out Of Scope
-
-- Authored waves, bosses, biome zones, director AI, elite modifiers, object pooling, or save/load state.
-
-### Acceptance Criteria
-
-- Starting the level produces enemies without manual placement.
-- New enemies originate outside an immediate unsafe radius around the player.
-- Live enemy count respects the configured cap.
-- Destroyed enemies are removed from the active collection.
-- Extended play does not produce stale-reference runtime errors.
-
-### Validation
-
-- Test start-of-run spawn behavior and cap behavior.
-- Kill enemies repeatedly and verify replacements appear.
-- Run for at least two minutes with debug live-enemy count visible or logged.
-
-### Implementation Record
-
-- Imported from the play-tested project state for publication.
-- Uses a looping timer to attempt enemy spawns and exposes `SpawnRate = 1`, `MaxEnemiesAlive = 10`, and `SpawnDistanceFromPlayer = 1000` defaults.
-- Tracks the live count through the enemy-death notification path so defeated enemies can be replaced.
-
----
-
-## BH-004: Implement Player Damage, Invulnerability Window, And Run End
-
-**Status:** `Done`
-**Priority:** High  
-**Milestone:** M2: Survival Loop  
-**Assets:** `Content/Blueprints/Characters/BP_Player.uasset`, `Content/Blueprints/Enemies/BP_Enemy.uasset`
-
-### Goal
-
-Make enemy contact a meaningful failure condition by consuming player health and ending the run at zero.
-
-### Research Required
-
-- Decide whether `Health` remains owned by `BP_Player` or moves into a reusable health component before adding more damageable actors.
-- Establish the enemy contact event path and verify repeated overlaps do not deal damage every frame.
-- Define a minimal post-hit invulnerability duration and feedback mechanism needed to make contact behavior debuggable.
-- Choose initial run-end behavior: pause/freeze with text, restart level action, or transition to a game-over widget.
-
-### Scope
-
-- Use the existing player `Health` variable or replace it with a clearly defined current/max-health pair.
-- Handle valid enemy contact damage.
-- Add a short invulnerability/cooldown guard after damage.
-- Stop active gameplay or present a restart state when player health reaches zero.
-- Provide basic visible or logged hit confirmation while UI work is pending.
-
-### Out Of Scope
-
-- Armor, regeneration, pickups, revive systems, meta progression, full pause menus, or persistence.
-
-### Acceptance Criteria
-
-- Contact with an enemy reduces health by a known amount.
-- Sustained overlap respects the configured damage cooldown.
-- Health reaching zero reliably ends the run or transitions to the chosen game-over state.
-- The player cannot continue firing or being damaged indefinitely after run end.
-
-### Validation
-
-- Walk into one enemy and confirm cooldown behavior.
-- Die while multiple enemies overlap and verify the run-end path executes once.
-
-### Implementation Record
-
-- Completed on 2026-05-26.
-- Retained player-owned `Health` and added `ContactDamageInterval = 0.75`, `IsInvulnerable`, and `IsGameOver` state to `BP_Player`.
-- Added a readable `ProcessContactDamage` function: it reads `ContactDamage` from the overlapping `BP_Enemy`, applies one hit per active interval, clears its timer after overlap ends, and clamps lethal health to zero.
-- Added player overlap entry flow that starts damage processing only when no invulnerability window is active, preventing multiple simultaneous enemy overlaps from stacking immediate hits.
-- Configured the enemy capsule to overlap the `Pawn` channel so contact events occur without blocking player movement.
-- On lethal damage, the player clears both contact-damage and projectile-firing timers, marks the run over, and pauses gameplay.
-- Compiled modified Blueprints with warnings treated as errors. In PIE, a controlled `100`-second interval test held player health at `990` during continued multi-enemy overlap after the initial `10`-damage hit; restored production defaults then reached `Health = 0` and `IsGameOver = true` at the `0.75`-second interval.
-
----
-
-## BH-005: Add Minimal Gameplay HUD And Debug Metrics
-
-**Status:** `Ready`
-**Priority:** Medium  
-**Milestone:** M3: Readable POC  
-**Assets:** New or existing UI Blueprint assets, game mode/player as data sources
-
-### Goal
-
-Expose enough state to judge whether the survival loop works without inspecting Blueprint variables during play.
-
-### Research Required
-
-- Determine whether existing template UI assets are reusable or whether a small dedicated widget is clearer.
-- Choose data ownership for elapsed time, defeated enemy count, and live enemy count so the HUD reads stable values.
-- Decide whether updates should use event dispatchers or periodic binding for the small POC scope.
-
-### Scope
-
-- Display player current/max health.
-- Display elapsed run time.
-- Display kill count and optionally live enemy count as a diagnostic metric.
-- Display a minimal game-over message/restart prompt if not already covered by `BH-004`.
-
-### Out Of Scope
-
-- Upgrade selection, experience bar, minimap, settings, styling pass, animation polish, or accessibility menu work.
-
-### Acceptance Criteria
-
-- During play, health reflects received damage.
-- Kill count increments on enemy death.
-- Elapsed time increases until run end.
-- Game-over state is readable without opening editor debugging views.
-
-### Validation
-
-- Play through spawning, kills, damage, and death while watching each displayed value.
+Completed task summaries for `BH-001` through `BH-005`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
@@ -391,7 +131,7 @@ Remove uncertainty about whether the playable character is authored in Blueprint
 
 ## BH-008: Establish POC Play-Test And Performance Gate
 
-**Status:** `Blocked` by `BH-001` through `BH-006`  
+**Status:** `Blocked` by `BH-006`
 **Priority:** Medium  
 **Milestone:** M4: Horde Readiness  
 **Assets:** Documentation and any debug configuration required for testing
@@ -433,7 +173,7 @@ Define a finite acceptance test for declaring the proof of concept successful be
 
 | Date | Build/Configuration | Result | Notes |
 | --- | --- | --- | --- |
-| Pending | Pending | Pending | Establish after M3 is complete. |
+| Pending | Pending | Pending | Establish after `BH-006` is complete. |
 
 ---
 
@@ -592,19 +332,14 @@ Select and validate an architecture suitable for several hundred simultaneous ba
 
 | Order | Task | Reason |
 | --- | --- | --- |
-| 1 | `BH-001` | Converts spawned shots into observable combat interactions. |
-| 2 | `BH-002` | Produces the smallest complete kill loop with one enemy. |
-| 3 | `BH-003` | Turns the kill loop into ongoing survival pressure and supplies a target registry. |
-| 4 | `BH-004` | Adds player risk and a meaningful run-ending condition. |
-| 5 | `BH-005` | Makes the loop observable and suitable for tuning. |
-| 6 | `BH-006` | Prevents the current targeting strategy from defining the horde ceiling. |
-| 7 | `BH-007` | Establishes code ownership before player behavior expands substantially. This decision may be executed earlier if C++ gameplay work begins. |
-| 8 | `BH-008` | Defines the POC completion gate after the loop exists. |
-| 9 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck. |
-| 10 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
-| 11 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
-| 12 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
-| 13 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
+| 1 | `BH-006` | Prevents the current targeting strategy from defining the horde ceiling. |
+| 2 | `BH-007` | Establishes code ownership before player behavior expands substantially. This decision may be executed earlier if C++ gameplay work begins. |
+| 3 | `BH-008` | Defines the POC completion gate after the loop exists. |
+| 4 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck. |
+| 5 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
+| 6 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
+| 7 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 8 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 
