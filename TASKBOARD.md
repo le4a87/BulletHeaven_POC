@@ -10,7 +10,7 @@ The following observations were confirmed from the project's custom Blueprints a
 
 | Asset | Current State |
 | --- | --- |
-| `BP_Player` | Starts a looping fire timer, scans all `BP_Enemy` actors, selects the nearest target, and spawns `BP_Projectile`. It now processes enemy contact through a `0.75`-second invulnerability window, tracks run-end state, and pauses gameplay at zero health. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
+| `BP_Player` | Starts a looping fire timer, asks the native targeting registry for the nearest live enemy, and spawns `BP_Projectile`. It now processes enemy contact through a `0.75`-second invulnerability window, tracks run-end state, and pauses gameplay at zero health. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
 | `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
 | `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, Pawn-overlap contact collision, world-space health presentation, and transient billboarding damage text. |
 | `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the current live-enemy cap defaults to `10`. |
@@ -41,139 +41,7 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 
 ## Completed Work
 
-Completed task summaries for `BH-001` through `BH-005`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
-
----
-
-## BH-006: Replace Repeated Global Target Scans
-
-**Status:** `Ready`
-**Priority:** Medium  
-**Milestone:** M4: Horde Readiness  
-**Assets:** `BP_Player`, `BP_EnemySpawner` or selected registry owner
-
-### Goal
-
-Keep automatic aiming viable as enemy count and firing frequency increase by avoiding a world-wide actor class query on every shot.
-
-### Research Required
-
-- Measure current `Get All Actors Of Class` approach with representative loads such as 25, 100, and 250 live enemies and faster firing intervals.
-- Evaluate registry iteration against spatial overlap queries within a targeting radius; select based on the expected weapon targeting rules.
-- Decide how weapons retrieve candidates without tightly coupling every future weapon to the spawner implementation.
-- Define behavior when the current target dies between target selection and firing.
-
-### Scope
-
-- Remove `Get All Actors Of Class (BP_Enemy)` from the repeated player firing path.
-- Read candidates from the selected active-enemy source or bounded query.
-- Keep nearest-valid-target behavior functionally equivalent for the base weapon.
-- Handle invalid/destroyed candidates without runtime errors.
-
-### Out Of Scope
-
-- Sophisticated spatial partitioning, multithreaded systems, mass entity conversion, target priorities, chain attacks, or full weapon framework.
-
-### Acceptance Criteria
-
-- Base weapon still fires toward the nearest valid enemy.
-- Firing works as enemies are spawned and destroyed continuously.
-- The firing path no longer performs a global all-enemy actor lookup per shot.
-- A documented play-test load does not show obvious stalling from target selection.
-
-### Validation
-
-- Run tests with increasing active enemy caps and faster `FireRate`.
-- Record rough editor frame behavior and the chosen practical cap for the POC.
-
----
-
-## BH-007: Decide And Apply Player Blueprint Ownership Strategy
-
-**Status:** `Ready` for decision; implementation should occur before significant player features expand  
-**Priority:** Medium  
-**Milestone:** M4: Horde Readiness  
-**Assets:** `BP_Player`, `Source/BulletHeavenPOC/BulletHeavenPOCCharacter.*`, `BP_TopDownGameMode`
-
-### Goal
-
-Remove uncertainty about whether the playable character is authored in Blueprint alone or extends the existing native character base.
-
-### Research Required
-
-- Compare the components and movement/camera setup of `BP_Player` with `ABulletHeavenPOCCharacter`.
-- Identify which future systems are expected to live in C++ versus Blueprint for this POC.
-- Evaluate reparenting risk: inherited components, defaults, input behavior, and existing player graph compatibility.
-- Confirm the GameMode and PlayerController combination required for the chosen movement scheme.
-
-### Scope
-
-- Make an explicit choice: keep `BP_Player` Blueprint-only, or reparent it to `ABulletHeavenPOCCharacter`.
-- If reparenting is selected, verify component duplication/conflicts, retained targeting behavior, camera behavior, and movement input.
-- Document the selected ownership rule for further gameplay additions.
-
-### Out Of Scope
-
-- General conversion of Blueprint logic to C++, gameplay framework redesign, multiplayer architecture, or template-content cleanup.
-
-### Acceptance Criteria
-
-- The player inheritance strategy is documented in this file or a project architecture note.
-- Playable pawn spawns correctly through the configured GameMode.
-- Movement, camera, and automatic projectile firing still operate after any required change.
-
-### Validation
-
-- Start a run from the configured default map and exercise movement and firing.
-- Recompile affected Blueprint and native project targets if C++ ownership is selected.
-
----
-
-## BH-008: Establish POC Play-Test And Performance Gate
-
-**Status:** `Blocked` by `BH-006`
-**Priority:** Medium  
-**Milestone:** M4: Horde Readiness  
-**Assets:** Documentation and any debug configuration required for testing
-
-### Goal
-
-Define a finite acceptance test for declaring the proof of concept successful before expanding content.
-
-### Research Required
-
-- Choose a minimum target run duration and enemy density that represent the desired survivor feel.
-- Use Unreal profiling/debug tooling to identify the key budget categories: Blueprint game time, active actor count, collision, and projectile count.
-- Determine a practical frame-rate or frame-time target for the intended development machine.
-- Identify the maximum projectile/enemy counts reached during the test and whether cleanup behavior is stable.
-
-### Scope
-
-- Write a short repeatable play-test checklist.
-- Capture target parameters: fire rate, spawn rate, live enemy cap, enemy health, player health, and survival duration.
-- Record whether the chosen test passes functional and performance expectations.
-- File follow-up tasks only for failures observed in the defined test.
-
-### Out Of Scope
-
-- Shipping optimization, platform certification, automated performance infrastructure, packaging, or content balancing beyond the test scenario.
-
-### Acceptance Criteria
-
-- A tester can start from `Map_BulletHeavenPOC` and execute the defined run without editor-only setup.
-- The run includes automatic firing, enemy kills, repeated spawning, player damage, and a game-over result.
-- No unbounded projectile/enemy accumulation or recurring Blueprint runtime errors occur.
-- Test results record approximate peak counts and observed frame behavior.
-
-### Validation
-
-- Complete the documented run once from a clean editor play session and record results below.
-
-### Test Results
-
-| Date | Build/Configuration | Result | Notes |
-| --- | --- | --- | --- |
-| Pending | Pending | Pending | Establish after `BH-006` is complete. |
+Completed task summaries for `BH-001` through `BH-008`, `BH-014`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
@@ -328,22 +196,149 @@ Select and validate an architecture suitable for several hundred simultaneous ba
 
 ---
 
+## BH-015: Reuse Player Walking Animation On Enemy
+
+**Status:** `Ready`
+**Priority:** Medium
+**Milestone:** M3: Readable POC
+**Assets:** `BP_Enemy`, `BP_Player`, player animation Blueprint/assets
+
+### Goal
+
+Make enemy movement more readable by using the same walking animation behavior already visible on the player.
+
+### Scope
+
+- Identify the animation asset or animation Blueprint used by `BP_Player` for walking.
+- Apply the same compatible walking animation setup to `BP_Enemy`.
+- Verify enemy movement direction, speed, mesh orientation, and idle/walk transitions still look acceptable.
+
+### Acceptance Criteria
+
+- Moving enemies visibly use the same walking animation style as the player.
+- Enemy collision, pursuit, damage, death, health bar, and damage text behavior remain unchanged.
+- No missing animation assets, skeleton mismatches, or animation Blueprint warnings appear.
+
+### Validation
+
+- Compile/save `BP_Enemy` and any modified animation assets.
+- Play-test at least one chase, hit, and death sequence.
+
+---
+
+## BH-016: Improve HUD Timer And Kill Stat Visibility
+
+**Status:** `In Progress` - native HUD implementation complete; PIE readability check pending
+**Priority:** High
+**Milestone:** M3: Readable POC
+**Assets:** `BHGameplayHUD.*`
+
+### Goal
+
+Make elapsed time and kill statistics easy to read during combat without distracting from gameplay.
+
+### Scope
+
+- Increase visual prominence of timer and kill count through position, font size, contrast, spacing, or grouping.
+- Preserve health, live-enemy count, and game-over messaging.
+- Keep HUD layout readable across the editor play viewport sizes used for testing.
+
+### Acceptance Criteria
+
+- Timer and kill count are immediately visible during active combat.
+- HUD text has sufficient contrast over the map floor, enemies, and projectile effects.
+- No HUD elements overlap or clip in common PIE viewport sizes.
+
+### Validation
+
+- Rebuild the native target if HUD C++ changes are made.
+- Play-test at normal and crowded enemy counts and verify readability while moving.
+
+---
+
+## BH-017: Scale Enemy Spawn Pressure Over Time
+
+**Status:** `Ready`
+**Priority:** High
+**Milestone:** M5: Population Scaling
+**Assets:** `BP_EnemySpawner`, `BHGameplayHUD.*` or elapsed-time provider if needed
+
+### Goal
+
+Increase run pressure by raising `MaxEnemiesAlive` and spawn frequency as elapsed survival time increases.
+
+### Scope
+
+- Define a simple time-based spawn curve or tier table for live-enemy cap and spawn interval.
+- Increase `MaxEnemiesAlive` over time instead of relying on one static cap.
+- Increase spawn frequency over time while preserving a minimum interval that avoids runaway spawning.
+- Keep current defaults suitable for short editor smoke tests.
+
+### Acceptance Criteria
+
+- Enemy pressure clearly ramps during a multi-minute run.
+- Spawn settings remain bounded and inspectable on `BP_EnemySpawner`.
+- The spawner does not exceed the active cap or create unbounded actor accumulation.
+- The ramp design records target caps, intervals, and elapsed-time breakpoints.
+
+### Validation
+
+- Compile/save `BP_EnemySpawner`.
+- Play-test a run long enough to cross at least two spawn-pressure tiers.
+- Record observed peak live-enemy count and any frame-time concerns for `BH-009`.
+
+---
+
+## BH-018: Prevent Enemy Stacking And Excessive Overlap
+
+**Status:** `Ready`
+**Priority:** High
+**Milestone:** M5: Population Scaling
+**Assets:** `BP_Enemy`, enemy movement/collision settings, optional native movement helper
+
+### Goal
+
+Keep enemies from occupying the same space so swarms read as a crowd instead of a single stacked pile.
+
+### Scope
+
+- Review current enemy capsule collision, movement collision response, and spawn placement behavior.
+- Choose a separation approach appropriate for the current `Character`-based enemy: collision tuning, simple avoidance, spawn spacing, or a bounded combination.
+- Preserve enemies' ability to surround and pressure the player without hard-blocking all movement.
+- Avoid expensive per-enemy neighbor scans that would undermine population scaling.
+
+### Acceptance Criteria
+
+- Multiple enemies chasing the player do not visibly stack on top of each other during normal pursuit.
+- Enemies can still move around each other well enough to maintain pressure.
+- Spawned enemies do not begin play in severe overlap unless immediately resolved.
+- The approach remains stable at the current and next planned live-enemy caps.
+
+### Validation
+
+- Compile/save `BP_Enemy` and any modified movement or collision assets.
+- Play-test dense chase scenarios at `25+` live enemies.
+- Re-check performance notes for `BH-009` if the solution adds per-enemy avoidance work.
+
+---
+
 ## Recommended Execution Order
 
 | Order | Task | Reason |
 | --- | --- | --- |
-| 1 | `BH-006` | Prevents the current targeting strategy from defining the horde ceiling. |
-| 2 | `BH-007` | Establishes code ownership before player behavior expands substantially. This decision may be executed earlier if C++ gameplay work begins. |
-| 3 | `BH-008` | Defines the POC completion gate after the loop exists. |
-| 4 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck. |
-| 5 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
-| 6 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
-| 7 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
-| 8 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
+| 1 | `BH-015` | Gives enemies clearer motion feedback with existing animation assets. |
+| 2 | `BH-016` | Makes key run metrics readable during normal and crowded play. |
+| 3 | `BH-017` | Adds time-based pressure so population testing reflects a survivor-style run. |
+| 4 | `BH-018` | Prevents crowd readability and collision behavior from distorting population tests. |
+| 5 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
+| 6 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
+| 7 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
+| 8 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 9 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 
-These features are intentionally excluded from the initial proof-of-concept tasks and should not be started until `BH-008` provides evidence that the core loop is sound:
+These features are intentionally excluded from the initial proof-of-concept tasks and should not be started until the POC play-test gate provides evidence that the core loop is sound:
 
 - Experience drops, leveling, and upgrade selection.
 - Multiple weapons or projectile behaviors.

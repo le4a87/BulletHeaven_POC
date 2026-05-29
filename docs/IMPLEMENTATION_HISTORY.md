@@ -55,6 +55,51 @@ This document preserves completed task summaries that have been rolled out of `T
 - Built `BulletHeavenPOCEditor` successfully with the new native HUD class.
 - Ran `CompileAllBlueprints -WarningsAsErrors`; completed with `0` errors, `0` warnings, and `0` failed Blueprint loads.
 
+### BH-006: Replace Repeated Global Target Scans
+
+- Completed on 2026-05-29.
+- Added native `BHEnemyRegistrySubsystem` to track live `BP_Enemy` actors for systems that need target candidates without querying every matching actor from repeated gameplay paths.
+- Added `BHTargetingLibrary` Blueprint-callable helpers for nearest registered enemy, live enemy count, and defeated enemy count.
+- Rewired `BP_Player.FireProjectile` from `GetAllActorsOfClass -> ForEachLoop -> distance comparison` to `FindNearestRegisteredEnemy -> Is Valid -> SpawnActor`.
+- Removed the old nearest-enemy local-variable assignment chain from the firing graph; the returned target actor now feeds both validity checking and projectile aim location directly.
+- Updated `BHGameplayHUD` to read live and defeated enemy counts from the registry instead of maintaining its own recurring actor scan.
+- Validated the saved `FireProjectile` graph with commandlet inspection; the firing path no longer contains `GetAllActorsOfClass`, `For Each Loop`, `Set NearestEnemy`, or `Get NearestEnemy`.
+- Built `BulletHeavenPOCEditor` successfully after the native targeting changes.
+- Ran `CompileAllBlueprints -WarningsAsErrors`; completed with `0` errors, `0` warnings, and `0` failed Blueprint loads.
+- Dedicated population measurement remains in `BH-009`; this task removes the per-shot global scan that would otherwise distort those results.
+
+### BH-007: Decide And Apply Player Blueprint Ownership Strategy
+
+- Completed on 2026-05-29.
+- Chose to keep `BP_Player` parented directly to `Character` for the current proof of concept.
+- `BP_Player` already owns the active camera, spring arm, health bar widget, health state, auto-fire timer, projectile spawning function, and Blueprint gameplay variables used by the HUD and combat loop.
+- `ABulletHeavenPOCCharacter` remains an abstract template-derived native character shell with camera and spring-arm components, planar movement defaults, and stubbed `BeginPlay`/`Tick`; reparenting now would introduce duplicate component/default risk without moving meaningful gameplay ownership into C++.
+- Native gameplay work should stay in shared services and read-only helpers for this POC, such as `BHGameplayHUD`, `BHEnemyRegistrySubsystem`, and `BHTargetingLibrary`, unless a future task deliberately migrates player behavior.
+- `BP_TopDownGameMode` continues to spawn `BP_Player` and use the existing player controller/HUD setup.
+- Validated by inspecting the active Blueprint class references and rebuilding `BulletHeavenPOCEditor`; no Blueprint reparent or asset save was required.
+
+### BH-008: Establish POC Play-Test And Performance Gate
+
+- Completed on 2026-05-29.
+- Added `docs/POC_PLAYTEST_GATE.md` as the repeatable proof-of-concept acceptance gate.
+- Defined a `5`-minute-or-game-over Play In Editor run from `Map_BulletHeavenPOC`.
+- Captured the baseline parameters to preserve during the gate: player health `100`, fire rate `0.5`, contact-damage interval `0.75`, camera spring arm length `1650`, projectile damage `10`, projectile lifespan `3`, enemy health `30`, enemy move speed `250`, enemy contact damage `10`, spawner rate `1`, live enemy cap `10`, and spawn distance `1000`.
+- Defined required observations for movement, automatic firing, repeated spawning, enemy pursuit, player damage, enemy death, HUD readability, projectile/enemy cleanup, and game-over behavior.
+- Defined the performance capture using `stat fps`, `stat unit`, `stat game`, and `stat blueprint`, with pass criteria targeting playable editor behavior and no sustained game-thread time above `33.3 ms`.
+- Added failure-handling guidance so follow-up tasks should be created only for observed gate failures.
+- Linked the gate from `README.md`.
+- Manual PIE validation was completed after restarting Unreal Editor on 2026-05-29; tester reported that everything seemed fine, with no observed gameplay failure from the defined gate.
+
+### BH-014: Zoom Gameplay Camera Out Slightly
+
+- Completed on 2026-05-29.
+- Increased `BP_Player.SpringArm.TargetArmLength` from `1400` to `1650` for a modest wider top-down combat view.
+- Kept the existing camera angle unchanged at approximately `Pitch = -50`, `Yaw = 45`, with spring-arm collision testing still disabled.
+- Left movement, firing, HUD ownership, cursor behavior, and camera component setup unchanged.
+- Compiled and saved `BP_Player` through the Unreal editor commandlet.
+- Verified the saved Blueprint default by reading back `target_arm_length = 1650.0`; `Map_BulletHeavenPOC` map check reported `0` errors and `0` warnings during the commandlet run.
+- Manual visual PIE play-test is still recommended to confirm combat readability, clipping, and crowded enemy approach feel on the live editor viewport.
+
 ## Completed Feedback Fixes
 
 ### Remove Duplicate Debug-Line Health Bars

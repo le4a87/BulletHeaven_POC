@@ -2,15 +2,13 @@
 
 #include "BHGameplayHUD.h"
 
+#include "BHTargetingLibrary.h"
 #include "Engine/Canvas.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/UnrealType.h"
 
-ABHGameplayHUD::ABHGameplayHUD()
-{
-	EnemyClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Blueprints/Enemies/BP_Enemy.BP_Enemy_C")));
-}
+ABHGameplayHUD::ABHGameplayHUD() = default;
 
 void ABHGameplayHUD::BeginPlay()
 {
@@ -32,12 +30,12 @@ void ABHGameplayHUD::DrawHUD()
 		return;
 	}
 
-	RefreshEnemyMetrics();
-
 	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	const double CurrentHealth = GetNumericProperty(PlayerPawn, TEXT("Health"), 0.0);
 	const double MaxHealth = GetNumericProperty(PlayerPawn, TEXT("MaxHealth"), PlayerMaxHealthFallback);
 	const bool bIsGameOver = GetBoolProperty(PlayerPawn, TEXT("IsGameOver"), false);
+	const int32 KillCount = UBHTargetingLibrary::GetRegisteredDefeatedEnemyCount(this);
+	const int32 LiveEnemyCount = UBHTargetingLibrary::GetRegisteredLiveEnemyCount(this);
 
 	if (bIsGameOver && GameOverTime <= RunStartTime)
 	{
@@ -47,78 +45,31 @@ void ABHGameplayHUD::DrawHUD()
 		}
 	}
 
-	float Y = 28.0f;
-	constexpr float X = 32.0f;
-	DrawGameplayLine(FString::Printf(TEXT("Health: %.0f / %.0f"), CurrentHealth, MaxHealth), X, Y, FLinearColor::White, 1.25f);
-	DrawGameplayLine(FString::Printf(TEXT("Elapsed: %.1fs"), GetElapsedTimeSeconds()), X, Y, FLinearColor::White, 1.0f);
-	DrawGameplayLine(FString::Printf(TEXT("Kills: %d"), KillCount), X, Y, FLinearColor::White, 1.0f);
-	DrawGameplayLine(FString::Printf(TEXT("Live Enemies: %d"), CachedLiveEnemyCount), X, Y, FLinearColor::White, 1.0f);
+	constexpr float PanelX = 24.0f;
+	constexpr float PanelY = 24.0f;
+	constexpr float PanelWidth = 420.0f;
+	constexpr float PanelHeight = 142.0f;
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.62f), PanelX, PanelY, PanelWidth, PanelHeight);
+	DrawRect(FLinearColor(0.0f, 0.72f, 0.95f, 0.85f), PanelX, PanelY, 5.0f, PanelHeight);
+
+	constexpr float PrimaryX = PanelX + 20.0f;
+	constexpr float PrimaryY = PanelY + 12.0f;
+	DrawPrimaryStat(TEXT("TIME"), FormatElapsedTime(GetElapsedTimeSeconds()), PrimaryX, PrimaryY, 1.9f);
+	DrawPrimaryStat(TEXT("KILLS"), FString::FromInt(KillCount), PrimaryX + 210.0f, PrimaryY, 1.9f);
+
+	float SecondaryY = PanelY + 92.0f;
+	float LeftY = SecondaryY;
+	float RightY = SecondaryY;
+	DrawGameplayLine(FString::Printf(TEXT("Health: %.0f / %.0f"), CurrentHealth, MaxHealth), PrimaryX, LeftY, FLinearColor::White, 1.0f);
+	DrawGameplayLine(FString::Printf(TEXT("Live Enemies: %d"), LiveEnemyCount), PrimaryX + 210.0f, RightY, FLinearColor::White, 1.0f);
 
 	if (bIsGameOver)
 	{
 		const float CenterX = (Canvas->SizeX * 0.5f) - 125.0f;
 		const float CenterY = Canvas->SizeY * 0.42f;
-		DrawText(TEXT("GAME OVER"), FLinearColor::Red, CenterX, CenterY, nullptr, 2.0f, false);
-		DrawText(TEXT("Stop PIE or restart the level to try again."), FLinearColor::White, CenterX - 70.0f, CenterY + 42.0f, nullptr, 1.0f, false);
+		DrawReadableText(TEXT("GAME OVER"), FLinearColor::Red, CenterX, CenterY, 2.0f);
+		DrawReadableText(TEXT("Stop PIE or restart the level to try again."), FLinearColor::White, CenterX - 70.0f, CenterY + 42.0f, 1.0f);
 	}
-}
-
-void ABHGameplayHUD::RefreshEnemyMetrics()
-{
-	const UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	const double CurrentTime = World->GetTimeSeconds();
-	if (LastEnemyMetricRefreshTime >= 0.0 && CurrentTime - LastEnemyMetricRefreshTime < EnemyMetricRefreshInterval)
-	{
-		return;
-	}
-
-	LastEnemyMetricRefreshTime = CurrentTime;
-
-	UClass* LoadedEnemyClass = EnemyClass.LoadSynchronous();
-	if (!LoadedEnemyClass)
-	{
-		CachedLiveEnemyCount = 0;
-		KnownEnemies.Empty();
-		return;
-	}
-
-	TArray<AActor*> CurrentEnemies;
-	UGameplayStatics::GetAllActorsOfClass(this, LoadedEnemyClass, CurrentEnemies);
-
-	TSet<FObjectKey> CurrentEnemyKeys;
-	for (AActor* Enemy : CurrentEnemies)
-	{
-		if (!IsValid(Enemy))
-		{
-			continue;
-		}
-
-		const FObjectKey EnemyKey(Enemy);
-		CurrentEnemyKeys.Add(EnemyKey);
-		KnownEnemies.FindOrAdd(EnemyKey) = Enemy;
-	}
-
-	TArray<FObjectKey> RemovedEnemyKeys;
-	for (const TPair<FObjectKey, TWeakObjectPtr<AActor>>& KnownEnemy : KnownEnemies)
-	{
-		if (!CurrentEnemyKeys.Contains(KnownEnemy.Key))
-		{
-			++KillCount;
-			RemovedEnemyKeys.Add(KnownEnemy.Key);
-		}
-	}
-
-	for (const FObjectKey& RemovedKey : RemovedEnemyKeys)
-	{
-		KnownEnemies.Remove(RemovedKey);
-	}
-
-	CachedLiveEnemyCount = CurrentEnemyKeys.Num();
 }
 
 double ABHGameplayHUD::GetElapsedTimeSeconds() const
@@ -135,11 +86,31 @@ double ABHGameplayHUD::GetElapsedTimeSeconds() const
 	return FMath::Max(0.0, EndTime - RunStartTime);
 }
 
+FString ABHGameplayHUD::FormatElapsedTime(double ElapsedSeconds) const
+{
+	const int32 TotalSeconds = FMath::FloorToInt(FMath::Max(0.0, ElapsedSeconds));
+	const int32 Minutes = TotalSeconds / 60;
+	const int32 Seconds = TotalSeconds % 60;
+	return FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
+}
+
+void ABHGameplayHUD::DrawPrimaryStat(const FString& Label, const FString& Value, float X, float Y, float ValueScale)
+{
+	DrawReadableText(Label, FLinearColor(0.78f, 0.92f, 1.0f, 1.0f), X, Y, 0.82f);
+	DrawReadableText(Value, FLinearColor::White, X, Y + 24.0f, ValueScale);
+}
+
 void ABHGameplayHUD::DrawGameplayLine(const FString& Text, float X, float& Y, const FLinearColor& Color, float Scale)
 {
 	constexpr float LineHeight = 24.0f;
-	DrawText(Text, Color, X, Y, nullptr, Scale, false);
+	DrawReadableText(Text, Color, X, Y, Scale);
 	Y += LineHeight * Scale;
+}
+
+void ABHGameplayHUD::DrawReadableText(const FString& Text, const FLinearColor& Color, float X, float Y, float Scale)
+{
+	DrawText(Text, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f), X + 2.0f, Y + 2.0f, nullptr, Scale, false);
+	DrawText(Text, Color, X, Y, nullptr, Scale, false);
 }
 
 double ABHGameplayHUD::GetNumericProperty(const UObject* Object, FName PropertyName, double DefaultValue)

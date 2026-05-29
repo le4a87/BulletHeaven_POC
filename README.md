@@ -122,6 +122,7 @@ C:\path\to\UnrealEngine\Engine\Build\BatchFiles\RunUAT.bat BuildCookRun ^
 - The project includes Unreal template content and source variants alongside the custom Bullet Heaven gameplay assets.
 - Custom automation/editor integration plugins are intentionally not required by the checked-in project manifest; contributors can enable their preferred local tooling without making it a project dependency.
 - Review [TASKBOARD.md](TASKBOARD.md) before expanding gameplay. It documents current milestones and planned performance work, including live-enemy scaling.
+- Use [docs/POC_PLAYTEST_GATE.md](docs/POC_PLAYTEST_GATE.md) for the repeatable proof-of-concept play-test and performance gate.
 - Review [docs/IMPLEMENTATION_HISTORY.md](docs/IMPLEMENTATION_HISTORY.md) for completed gameplay-loop and feedback implementation notes.
 - Blueprint modifications should follow [AGENTS.md](AGENTS.md), including readable graph arrangement, avoiding unnecessary Tick work, compilation, saving, and practical validation.
 
