@@ -120,6 +120,18 @@ This document preserves completed task summaries that have been rolled out of `T
 - Built `BulletHeavenPOCEditor` successfully with `-NoHotReload` after the native feedback changes.
 - Initial PIE validation confirmed damage numbers still appeared but exposed duplicate signed values from the old Blueprint presentation path; that presentation issue was resolved by the completed feedback fix below.
 
+### BH-018: Prevent Enemy Stacking And Excessive Overlap
+
+- Completed on 2026-05-29.
+- Enabled built-in RVO avoidance on `BP_Enemy.CharacterMovement`, with `AvoidanceConsiderationRadius = 250` and `AvoidanceWeight = 1.0`.
+- Set `BP_Enemy.SpawnCollisionHandlingMethod` to `AdjustIfPossibleButDontSpawnIfColliding` so enemy spawns can adjust away from immediate collision instead of starting in severe overlap.
+- After PIE showed RVO alone still allowed visible clustering, added centralized native enemy separation to `BHEnemyRegistrySubsystem`.
+- The registry now applies a bounded 2D separation pass over registered live enemies, pushing actors apart only within a `140` cm radius and clamping each actor correction to `60` cm per tick.
+- Kept separation out of per-enemy Blueprint Tick and avoided repeated `GetAllActors` or per-enemy neighbor scans.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload` after the native separation change.
+- `CompileAllBlueprints -WarningsAsErrors` reported `0` errors, `0` warnings, and `0` failed Blueprint loads; the commandlet's nonzero exit was caused by the editor MCP HTTP listener port already being bound by the open editor session.
+- Manual PIE validation after restarting Unreal Editor confirmed the enemy clustering fix looked good.
+
 ## Completed Feedback Fixes
 
 ### Remove Duplicate Debug-Line Health Bars

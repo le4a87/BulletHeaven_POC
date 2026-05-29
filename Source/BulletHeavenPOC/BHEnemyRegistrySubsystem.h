@@ -51,11 +51,21 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Bullet Heaven|Enemies", meta = (ClampMin = "0.05"))
 	float DiscoveryInterval = 0.25f;
 
+	UPROPERTY(EditAnywhere, Category = "Bullet Heaven|Separation", meta = (ClampMin = "0.0", Units = "cm"))
+	float EnemySeparationRadius = 140.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Bullet Heaven|Separation", meta = (ClampMin = "0.0"))
+	float EnemySeparationStrength = 8.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Bullet Heaven|Separation", meta = (ClampMin = "0.0", Units = "cm"))
+	float MaxSeparationStep = 60.0f;
+
 	TMap<FObjectKey, TWeakObjectPtr<AActor>> LiveEnemies;
 	float TimeUntilNextDiscovery = 0.0f;
 	int32 DefeatedEnemyCount = 0;
 
 	void DiscoverEnemies();
 	void PruneInvalidEnemies();
+	void ApplyEnemySeparation(float DeltaTime);
 	static bool IsUsableEnemy(const AActor* Enemy);
 };

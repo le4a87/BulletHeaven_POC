@@ -41,7 +41,7 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 
 ## Completed Work
 
-Completed task summaries for `BH-001` through `BH-008`, `BH-010`, `BH-014`, `BH-015`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
+Completed task summaries for `BH-001` through `BH-008`, `BH-010`, `BH-014`, `BH-015`, `BH-018`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
@@ -234,50 +234,16 @@ Increase run pressure by raising `MaxEnemiesAlive` and spawn frequency as elapse
 
 ---
 
-## BH-018: Prevent Enemy Stacking And Excessive Overlap
-
-**Status:** `Ready`
-**Priority:** High
-**Milestone:** M5: Population Scaling
-**Assets:** `BP_Enemy`, enemy movement/collision settings, optional native movement helper
-
-### Goal
-
-Keep enemies from occupying the same space so swarms read as a crowd instead of a single stacked pile.
-
-### Scope
-
-- Review current enemy capsule collision, movement collision response, and spawn placement behavior.
-- Choose a separation approach appropriate for the current `Character`-based enemy: collision tuning, simple avoidance, spawn spacing, or a bounded combination.
-- Preserve enemies' ability to surround and pressure the player without hard-blocking all movement.
-- Avoid expensive per-enemy neighbor scans that would undermine population scaling.
-
-### Acceptance Criteria
-
-- Multiple enemies chasing the player do not visibly stack on top of each other during normal pursuit.
-- Enemies can still move around each other well enough to maintain pressure.
-- Spawned enemies do not begin play in severe overlap unless immediately resolved.
-- The approach remains stable at the current and next planned live-enemy caps.
-
-### Validation
-
-- Compile/save `BP_Enemy` and any modified movement or collision assets.
-- Play-test dense chase scenarios at `25+` live enemies.
-- Re-check performance notes for `BH-009` if the solution adds per-enemy avoidance work.
-
----
-
 ## Recommended Execution Order
 
 | Order | Task | Reason |
 | --- | --- | --- |
 | 1 | `BH-016` | Makes key run metrics readable during normal and crowded play. |
 | 2 | `BH-017` | Adds time-based pressure so population testing reflects a survivor-style run. |
-| 3 | `BH-018` | Prevents crowd readability and collision behavior from distorting population tests. |
-| 4 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
-| 5 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
-| 6 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
-| 7 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
+| 3 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
+| 4 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
+| 5 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 6 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 

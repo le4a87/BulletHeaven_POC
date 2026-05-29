@@ -45,6 +45,8 @@ void UBHEnemyRegistrySubsystem::Tick(float DeltaTime)
 	{
 		PruneInvalidEnemies();
 	}
+
+	ApplyEnemySeparation(DeltaTime);
 }
 
 TStatId UBHEnemyRegistrySubsystem::GetStatId() const
@@ -170,6 +172,83 @@ void UBHEnemyRegistrySubsystem::PruneInvalidEnemies()
 	for (const FObjectKey& RemovedEnemy : RemovedEnemies)
 	{
 		LiveEnemies.Remove(RemovedEnemy);
+	}
+}
+
+void UBHEnemyRegistrySubsystem::ApplyEnemySeparation(float DeltaTime)
+{
+	if (EnemySeparationRadius <= 0.0f || EnemySeparationStrength <= 0.0f || MaxSeparationStep <= 0.0f)
+	{
+		return;
+	}
+
+	TArray<AActor*> Enemies;
+	Enemies.Reserve(LiveEnemies.Num());
+	for (const TPair<FObjectKey, TWeakObjectPtr<AActor>>& EnemyPair : LiveEnemies)
+	{
+		if (AActor* Enemy = EnemyPair.Value.Get(); IsUsableEnemy(Enemy))
+		{
+			Enemies.Add(Enemy);
+		}
+	}
+
+	const int32 EnemyCount = Enemies.Num();
+	if (EnemyCount < 2)
+	{
+		return;
+	}
+
+	TArray<FVector> Offsets;
+	Offsets.Init(FVector::ZeroVector, EnemyCount);
+
+	const float SeparationRadiusSquared = FMath::Square(EnemySeparationRadius);
+	for (int32 FirstIndex = 0; FirstIndex < EnemyCount - 1; ++FirstIndex)
+	{
+		AActor* FirstEnemy = Enemies[FirstIndex];
+		const FVector FirstLocation = FirstEnemy->GetActorLocation();
+
+		for (int32 SecondIndex = FirstIndex + 1; SecondIndex < EnemyCount; ++SecondIndex)
+		{
+			AActor* SecondEnemy = Enemies[SecondIndex];
+			const FVector SecondLocation = SecondEnemy->GetActorLocation();
+			FVector Delta = FirstLocation - SecondLocation;
+			Delta.Z = 0.0f;
+
+			const float DistanceSquared = Delta.SizeSquared();
+			if (DistanceSquared >= SeparationRadiusSquared)
+			{
+				continue;
+			}
+
+			FVector Direction = FVector::ZeroVector;
+			float Distance = 0.0f;
+			if (DistanceSquared > UE_SMALL_NUMBER)
+			{
+				Distance = FMath::Sqrt(DistanceSquared);
+				Direction = Delta / Distance;
+			}
+			else
+			{
+				const float Angle = static_cast<float>((FirstIndex * 73 + SecondIndex * 37) % 360) * UE_PI / 180.0f;
+				Direction = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+			}
+
+			const float Overlap = EnemySeparationRadius - Distance;
+			const float Step = FMath::Min(Overlap * EnemySeparationStrength * DeltaTime, MaxSeparationStep);
+			const FVector PairOffset = Direction * (Step * 0.5f);
+			Offsets[FirstIndex] += PairOffset;
+			Offsets[SecondIndex] -= PairOffset;
+		}
+	}
+
+	for (int32 EnemyIndex = 0; EnemyIndex < EnemyCount; ++EnemyIndex)
+	{
+		FVector Offset = Offsets[EnemyIndex];
+		Offset.Z = 0.0f;
+		if (!Offset.IsNearlyZero())
+		{
+			Enemies[EnemyIndex]->AddActorWorldOffset(Offset.GetClampedToMaxSize(MaxSeparationStep), false);
+		}
 	}
 }
 
