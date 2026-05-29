@@ -13,7 +13,7 @@ The following observations were confirmed from the project's custom Blueprints a
 | `BP_Player` | Starts a looping fire timer, asks the native targeting registry for the nearest live enemy, and spawns `BP_Projectile`. It now processes enemy contact through a `0.75`-second invulnerability window, tracks run-end state, and pauses gameplay at zero health. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
 | `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
 | `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, Pawn-overlap contact collision, world-space health presentation, and transient billboarding damage text. |
-| `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the current live-enemy cap defaults to `10`. |
+| `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the live-enemy cap has been manually raised to `50` and default spawn distance is now `2400` for current population testing. |
 | Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player` and uses `BHGameplayHUD` for runtime health, time, kill, live-enemy, and game-over readouts. `BP_Player` derives directly from `Character`, not the project C++ character class. |
 
 The implemented gameplay assets were compiled and play-tested during prototype development. Remaining tasks below track readability, ownership, test-gate, and scalability work.
@@ -41,13 +41,13 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 
 ## Completed Work
 
-Completed task summaries for `BH-001` through `BH-008`, `BH-014`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
+Completed task summaries for `BH-001` through `BH-008`, `BH-010`, `BH-014`, `BH-015`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
 ## BH-009: Profile Live Enemy Population Limits
 
-**Status:** `Ready`
+**Status:** `In Progress` - informal 50-enemy PIE observation recorded; formal profiling pending
 **Priority:** High
 **Milestone:** M5: Population Scaling
 **Assets:** `BP_EnemySpawner`, test map, performance test notes
@@ -74,35 +74,10 @@ Measure the current practical live-enemy limit before optimization and identify 
 - Complete the four population-tier runs in a fresh play session using the same combat scenario.
 - Add results to this task or a linked performance note.
 
----
+### Running Notes
 
-## BH-010: Gate Damage-Text Billboard And Fade Updates
-
-**Status:** `Ready`
-**Priority:** High
-**Milestone:** M5: Population Scaling
-**Assets:** `Content/Blueprints/Enemies/BP_Enemy.uasset`, damage-text presentation owner if refactored
-
-### Goal
-
-Remove hidden floating-damage text from steady-state per-enemy Tick cost.
-
-### Scope
-
-- Update the camera-facing rotation only while damage text is visible, or move transient text display to a pooled presentation manager.
-- Preserve the current short-lived translucent fade behavior and camera-facing readability.
-- Ensure repeated hits refresh the display duration without accumulating latent updates or text actors.
-
-### Acceptance Criteria
-
-- Enemies that are not currently showing damage text perform no billboard work for that text.
-- Damage text still faces the camera, fades quickly, and hides reliably after repeated hits.
-- Performance comparison at the `BH-009` degraded tier shows the change does not add frame cost and reduces damage-feedback overhead under sustained hits.
-
-### Validation
-
-- Test isolated hits, rapid repeated hits, and a dense combat case.
-- Compare Blueprint/game-thread observations before and after the change.
+- 2026-05-29: Manual PIE check with `MaxEnemiesAlive = 50` was reported as stable by the tester. This is an informal observation, not yet a full `BH-009` profiling pass with captured stats.
+- 2026-05-29: `BP_EnemySpawner.SpawnDistanceFromPlayer` was increased from `1000` to `2400` because the earlier radius could spawn enemies inside the current `1650` spring-arm camera view.
 
 ---
 
@@ -137,7 +112,7 @@ Avoid paying for a world-space UMG health bar on every live enemy throughout com
 
 ## BH-012: Reduce Per-Enemy Tick And Character Cost
 
-**Status:** `Blocked` by `BH-009`, `BH-010`, and `BH-011`
+**Status:** `Blocked` by `BH-009` and `BH-011`
 **Priority:** Medium
 **Milestone:** M5: Population Scaling
 **Assets:** `BP_Enemy`, enemy movement/animation assets, optional native gameplay code
@@ -193,36 +168,6 @@ Select and validate an architecture suitable for several hundred simultaneous ba
 ### Validation
 
 - Run the prototype with the target population and record simulation, rendering, collision, and feedback behavior.
-
----
-
-## BH-015: Reuse Player Walking Animation On Enemy
-
-**Status:** `Ready`
-**Priority:** Medium
-**Milestone:** M3: Readable POC
-**Assets:** `BP_Enemy`, `BP_Player`, player animation Blueprint/assets
-
-### Goal
-
-Make enemy movement more readable by using the same walking animation behavior already visible on the player.
-
-### Scope
-
-- Identify the animation asset or animation Blueprint used by `BP_Player` for walking.
-- Apply the same compatible walking animation setup to `BP_Enemy`.
-- Verify enemy movement direction, speed, mesh orientation, and idle/walk transitions still look acceptable.
-
-### Acceptance Criteria
-
-- Moving enemies visibly use the same walking animation style as the player.
-- Enemy collision, pursuit, damage, death, health bar, and damage text behavior remain unchanged.
-- No missing animation assets, skeleton mismatches, or animation Blueprint warnings appear.
-
-### Validation
-
-- Compile/save `BP_Enemy` and any modified animation assets.
-- Play-test at least one chase, hit, and death sequence.
 
 ---
 
@@ -326,15 +271,13 @@ Keep enemies from occupying the same space so swarms read as a crowd instead of 
 
 | Order | Task | Reason |
 | --- | --- | --- |
-| 1 | `BH-015` | Gives enemies clearer motion feedback with existing animation assets. |
-| 2 | `BH-016` | Makes key run metrics readable during normal and crowded play. |
-| 3 | `BH-017` | Adds time-based pressure so population testing reflects a survivor-style run. |
-| 4 | `BH-018` | Prevents crowd readability and collision behavior from distorting population tests. |
-| 5 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
-| 6 | `BH-010` | Removes unnecessary hidden damage-text updates from every live enemy. |
-| 7 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
-| 8 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
-| 9 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
+| 1 | `BH-016` | Makes key run metrics readable during normal and crowded play. |
+| 2 | `BH-017` | Adds time-based pressure so population testing reflects a survivor-style run. |
+| 3 | `BH-018` | Prevents crowd readability and collision behavior from distorting population tests. |
+| 4 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
+| 5 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
+| 6 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 7 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 

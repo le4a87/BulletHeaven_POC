@@ -21,6 +21,11 @@ namespace BHHealthFeedback
 	constexpr float DamageNumberFadeDuration = 0.35f;
 	constexpr float DamageNumberRiseSpeed = 55.0f;
 	constexpr float DamageNumberTextSize = 42.0f;
+
+	FText FormatDamageText(float Damage)
+	{
+		return FText::FromString(FString::Printf(TEXT("%.0f"), FMath::Abs(Damage)));
+	}
 }
 
 bool UBHHealthFeedbackSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -90,6 +95,7 @@ void UBHHealthFeedbackSubsystem::RegisterHealthActors()
 		{
 			continue;
 		}
+		HideBlueprintDamageText(Actor);
 
 		const TWeakObjectPtr<AActor> ActorPtr(Actor);
 		if (!ObservedActors.Contains(ActorPtr))
@@ -117,10 +123,48 @@ void UBHHealthFeedbackSubsystem::HandleActorDamaged(
 		return;
 	}
 
+	HideBlueprintDamageText(DamagedActor);
+
+	for (int32 Index = FloatingDamageNumbers.Num() - 1; Index >= 0; --Index)
+	{
+		FFloatingDamageNumber& ExistingNumber = FloatingDamageNumbers[Index];
+		if (ExistingNumber.DamagedActor.Get() != DamagedActor)
+		{
+			continue;
+		}
+
+		ATextRenderActor* TextActor = ExistingNumber.TextActor.Get();
+		if (!TextActor)
+		{
+			FloatingDamageNumbers.RemoveAtSwap(Index);
+			break;
+		}
+
+		ExistingNumber.Location = DamagedActor->GetActorLocation() + FVector(0.0f, 0.0f, BHHealthFeedback::DamageNumberHeight);
+		ExistingNumber.Damage = Damage;
+		ExistingNumber.RemainingTime = BHHealthFeedback::DamageNumberLifetime;
+
+		TextActor->SetActorLocation(ExistingNumber.Location);
+		UTextRenderComponent* TextComponent = TextActor->GetTextRender();
+		TextComponent->SetText(BHHealthFeedback::FormatDamageText(Damage));
+		TextComponent->SetTextRenderColor(FColor(255, 70, 35));
+
+		if (const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0))
+		{
+			const FVector ToCamera = CameraManager->GetCameraLocation() - ExistingNumber.Location;
+			if (!ToCamera.IsNearlyZero())
+			{
+				TextActor->SetActorRotation(ToCamera.Rotation());
+			}
+		}
+		return;
+	}
+
 	FFloatingDamageNumber& Number = FloatingDamageNumbers.AddDefaulted_GetRef();
 	Number.Location = DamagedActor->GetActorLocation() + FVector(0.0f, 0.0f, BHHealthFeedback::DamageNumberHeight);
 	Number.Damage = Damage;
 	Number.RemainingTime = BHHealthFeedback::DamageNumberLifetime;
+	Number.DamagedActor = DamagedActor;
 
 	UWorld* World = GetWorld();
 	if (!World)
@@ -143,7 +187,7 @@ void UBHHealthFeedbackSubsystem::HandleActorDamaged(
 	}
 
 	UTextRenderComponent* TextComponent = TextActor->GetTextRender();
-	TextComponent->SetText(FText::FromString(FString::Printf(TEXT("-%.0f"), Damage)));
+	TextComponent->SetText(BHHealthFeedback::FormatDamageText(Damage));
 	TextComponent->SetWorldSize(BHHealthFeedback::DamageNumberTextSize);
 	TextComponent->SetHorizontalAlignment(EHorizTextAligment::EHTA_Center);
 	TextComponent->SetVerticalAlignment(EVerticalTextAligment::EVRTA_TextCenter);
@@ -218,6 +262,25 @@ bool UBHHealthFeedbackSubsystem::TryReadNumericProperty(const AActor* Actor, FNa
 	return false;
 }
 
+void UBHHealthFeedbackSubsystem::HideBlueprintDamageText(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	TArray<UTextRenderComponent*> TextComponents;
+	Actor->GetComponents(TextComponents);
+	for (UTextRenderComponent* TextComponent : TextComponents)
+	{
+		if (TextComponent && TextComponent->GetFName() == TEXT("DamageText"))
+		{
+			TextComponent->SetHiddenInGame(true);
+			TextComponent->SetVisibility(false, true);
+		}
+	}
+}
+
 void UBHHealthFeedbackSubsystem::DrawDamageNumbers(float DeltaTime)
 {
 	UWorld* World = GetWorld();
@@ -226,10 +289,16 @@ void UBHHealthFeedbackSubsystem::DrawDamageNumbers(float DeltaTime)
 		return;
 	}
 
+	if (FloatingDamageNumbers.IsEmpty())
+	{
+		return;
+	}
+
 	const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(World, 0);
 	for (int32 Index = FloatingDamageNumbers.Num() - 1; Index >= 0; --Index)
 	{
 		FFloatingDamageNumber& Number = FloatingDamageNumbers[Index];
+		HideBlueprintDamageText(Number.DamagedActor.Get());
 		Number.RemainingTime -= DeltaTime;
 		if (Number.RemainingTime <= 0.0f)
 		{

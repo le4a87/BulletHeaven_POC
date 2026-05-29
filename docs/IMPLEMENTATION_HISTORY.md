@@ -100,6 +100,26 @@ This document preserves completed task summaries that have been rolled out of `T
 - Verified the saved Blueprint default by reading back `target_arm_length = 1650.0`; `Map_BulletHeavenPOC` map check reported `0` errors and `0` warnings during the commandlet run.
 - Manual visual PIE play-test is still recommended to confirm combat readability, clipping, and crowded enemy approach feel on the live editor viewport.
 
+### BH-015: Reuse Player Walking Animation On Enemy
+
+- Completed on 2026-05-29.
+- Confirmed `BP_Player.Mesh` and `BP_Enemy.Mesh` both use `SKM_Manny_Simple` with skeleton `SK_Mannequin`, making the player animation Blueprint compatible with the enemy mesh.
+- Assigned `BP_Enemy.Mesh.AnimClass` to the same player animation Blueprint generated class, `/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C`.
+- Added red enemy material instances `/Game/Characters/Mannequins/Materials/Manny/MI_Enemy_01` and `/Game/Characters/Mannequins/Materials/Manny/MI_Enemy_02`, then assigned them to `BP_Enemy.Mesh` slots 0 and 1 so enemies remain visually distinct from the player.
+- Left enemy mesh, transform, collision, pursuit, damage, death, health bar, and damage text behavior unchanged.
+- Compiled and saved `BP_Enemy` through the Unreal editor commandlet; the two new material instances were saved and asset validation ran on all three changed assets.
+- Manual PIE validation after restarting Unreal Editor confirmed enemies use the expected walking animation and appear red.
+
+### BH-010: Gate Damage-Text Billboard And Fade Updates
+
+- Completed on 2026-05-29.
+- Moved visible floating damage-number ownership into `BHHealthFeedbackSubsystem` instead of relying on each enemy's legacy `DamageText` presentation path.
+- Added damaged-actor tracking for active native floating damage numbers so repeated damage on the same actor reuses one transient `ATextRenderActor`.
+- Repeated hits now refresh the existing text actor's text, location, color, and lifetime instead of accumulating overlapping text actors during rapid hits.
+- Damage-number update work returns immediately when no floating numbers are active, avoiding camera lookup and per-number billboard processing during the hidden steady state.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload` after the native feedback changes.
+- Initial PIE validation confirmed damage numbers still appeared but exposed duplicate signed values from the old Blueprint presentation path; that presentation issue was resolved by the completed feedback fix below.
+
 ## Completed Feedback Fixes
 
 ### Remove Duplicate Debug-Line Health Bars
@@ -109,3 +129,15 @@ This document preserves completed task summaries that have been rolled out of `T
 - Kept floating damage numbers active, billboarded toward the camera, short-lived, and faded through the native feedback subsystem.
 - Reduced health-actor discovery from every frame to a `0.25`-second scan interval so steady-state feedback work is limited to active damage numbers.
 - Built `BulletHeavenPOCEditor` successfully after the change.
+
+### Display One Unsigned Damage Number Per Collision
+
+- Completed on 2026-05-29.
+- Identified the duplicate damage numbers as two presentation owners showing the same hit: `BP_Enemy`'s legacy `DamageText` component and the native `BHHealthFeedbackSubsystem` floating text actor.
+- Updated `BHHealthFeedbackSubsystem` to force legacy `DamageText` components hidden on registered health-bearing actors and to own the visible floating damage number.
+- Formatted native damage text with the absolute damage amount and no `+` or `-` prefix.
+- Kept the camera-facing, short-lived, fading native presentation while preserving the one-active-number-per-damaged-actor reuse from `BH-010`.
+- Increased `BP_EnemySpawner.SpawnDistanceFromPlayer` from `1000` to `2400` because the previous radius could place spawns inside the current `1650` spring-arm camera view.
+- Preserved the manually tested `BP_EnemySpawner.MaxEnemiesAlive = 50` population cap.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`; compiled and saved `BP_EnemySpawner` after the spawn-distance update.
+- Manual PIE validation after restarting Unreal Editor confirmed the final damage-number and enemy-spawn presentation looked correct.
