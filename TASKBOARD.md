@@ -13,7 +13,7 @@ The following observations were confirmed from the project's custom Blueprints a
 | `BP_Player` | Starts a looping fire timer, asks the native targeting registry for the nearest live enemy, and spawns `BP_Projectile`. It now processes enemy contact through a `0.75`-second invulnerability window, tracks run-end state, and pauses gameplay at zero health. Variables include `Health = 100`, `FireRate = 0.5`, and `ProjectileClass = BP_Projectile`. |
 | `BP_Projectile` | Uses straight planar projectile motion, a visible collision-driven representation, configurable damage, finite lifespan, and applies damage to `BP_Enemy` on hit. |
 | `BP_Enemy` | Character Blueprint with pursuit, health/damage/death processing, Pawn-overlap contact collision, world-space health presentation, and transient billboarding damage text. |
-| `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the live-enemy cap has been manually raised to `50` and default spawn distance is now `2400` for current population testing. |
+| `BP_EnemySpawner` | Uses a looping spawn timer and exposes `SpawnRate`, `MaxEnemiesAlive`, and `SpawnDistanceFromPlayer`; the live-enemy cap has been manually raised to `75` and default spawn distance is now `2400` for current population testing. |
 | Playable pawn setup | `BP_TopDownGameMode` spawns `BP_Player` and uses `BHGameplayHUD` for runtime health, time, kill, live-enemy, and game-over readouts. `BP_Player` derives directly from `Character`, not the project C++ character class. |
 
 The implemented gameplay assets were compiled and play-tested during prototype development. Remaining tasks below track readability, ownership, test-gate, and scalability work.
@@ -36,21 +36,22 @@ The implemented gameplay assets were compiled and play-tested during prototype d
 | M3: Readable POC | Health, elapsed survival time, and basic run metrics are visible. | `BH-005` |
 | M4: Horde Readiness | Target acquisition and content ownership are suitable for increasing enemy count. | `BH-006`, `BH-007`, `BH-008` |
 | M5: Population Scaling | Enemy presentation and simulation costs are reduced and a supported path to hundreds of enemies is defined. | `BH-009`, `BH-010`, `BH-011`, `BH-012`, `BH-013` |
+| M6: Arena Obstacles | The combat arena includes simple randomized blockers that affect player/enemy movement, targeting, and projectile travel. | `BH-019`, `BH-020` |
 
 ---
 
 ## Completed Work
 
-Completed task summaries for `BH-001` through `BH-008`, `BH-010`, `BH-014`, `BH-015`, `BH-018`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
+Completed task summaries for `BH-001` through `BH-008`, `BH-010`, `BH-011`, `BH-012`, `BH-014`, `BH-015`, `BH-016`, `BH-017`, `BH-018`, `BH-019`, `BH-020`, plus completed feedback fixes, have been moved to `docs/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
 ## BH-009: Profile Live Enemy Population Limits
 
-**Status:** `In Progress` - informal 50-enemy PIE observation recorded; formal profiling pending
+**Status:** `In Progress` - formal fixed-cap `75` and `100` baselines captured; lower fixed-cap tiers pending
 **Priority:** High
 **Milestone:** M5: Population Scaling
-**Assets:** `BP_EnemySpawner`, test map, performance test notes
+**Assets:** `BP_EnemySpawner`, test map, `BHPopulationTelemetrySubsystem.*`, `tools/compare_population_telemetry.py`, `docs/BH-009_POPULATION_PROFILE.md`, `docs/PERFORMANCE_VALIDATION.md`
 
 ### Goal
 
@@ -78,72 +79,23 @@ Measure the current practical live-enemy limit before optimization and identify 
 
 - 2026-05-29: Manual PIE check with `MaxEnemiesAlive = 50` was reported as stable by the tester. This is an informal observation, not yet a full `BH-009` profiling pass with captured stats.
 - 2026-05-29: `BP_EnemySpawner.SpawnDistanceFromPlayer` was increased from `1000` to `2400` because the earlier radius could spawn enemies inside the current `1650` spring-arm camera view.
-
----
-
-## BH-011: Reduce Per-Enemy Health-Bar Widget Cost
-
-**Status:** `Ready`
-**Priority:** High
-**Milestone:** M5: Population Scaling
-**Assets:** `Content/Blueprints/Enemies/BP_Enemy.uasset`, `Content/Blueprints/UI/WBP_ActorHealthBar.uasset`
-
-### Goal
-
-Avoid paying for a world-space UMG health bar on every live enemy throughout combat.
-
-### Scope
-
-- Choose a visibility policy such as damaged-only, nearby-only, selected/targeted-only, or a bounded combination.
-- Disable, remove, or pool health-bar widget work for enemies outside that policy.
-- Retain readable health feedback for enemies the player is actively engaging.
-
-### Acceptance Criteria
-
-- Large groups do not maintain visible/ticking health-bar widgets for every enemy.
-- Health bars appear and update correctly under the selected visibility policy.
-- Re-run of the `BH-009` scenario records the population-tier improvement or residual widget cost.
-
-### Validation
-
-- Test damage, recovery/hide timing if applicable, target changes, and crowded enemy groups.
-
----
-
-## BH-012: Reduce Per-Enemy Tick And Character Cost
-
-**Status:** `Blocked` by `BH-009` and `BH-011`
-**Priority:** Medium
-**Milestone:** M5: Population Scaling
-**Assets:** `BP_Enemy`, enemy movement/animation assets, optional native gameplay code
-
-### Goal
-
-Determine the least disruptive simulation changes needed after presentation costs have been removed from the measured bottleneck.
-
-### Scope
-
-- Review the cost of each enemy being a full `Character` with `CharacterMovement`, skeletal mesh, collision, and zero-interval Blueprint Tick.
-- Apply tick-rate or distance-based throttling where behavior remains acceptable.
-- Configure off-screen animation and visual update policies.
-- If still required by profiling, prototype a lightweight basic-enemy `Pawn` or `Actor` movement implementation instead of `CharacterMovement`.
-
-### Acceptance Criteria
-
-- The chosen enemy representation and tick policy are documented with measured before/after results.
-- Nearby combat remains responsive while distant or off-screen enemies incur reduced update cost.
-- No collision, pursuit, damage, or death regressions appear in the representative load test.
-
-### Validation
-
-- Re-run population tests and compare frame-time categories against `BH-009`.
-- Play-test close-range swarms and off-screen approach behavior.
+- 2026-06-01: Tester raised `BP_EnemySpawner.MaxEnemiesAlive` from `50` to `75` after validating damaged-only enemy health bars in PIE. Treat this as the current population-test cap, not a completed formal profiling tier.
+- 2026-06-01: Added `docs/BH-009_POPULATION_PROFILE.md` with the formal `25`/`50`/`75`/`100` tier matrix, required stat captures, Unreal Insights trace slot, and supported-cap decision fields. Actual performance data still needs to be collected in PIE.
+- 2026-06-01: Added native `BHPopulationTelemetrySubsystem`, active only on `Map_BulletHeavenPOC`, to write one CSV per PIE run under `Saved/Profiling/BH009_*.csv`. Samples include elapsed time, average/worst frame time, average FPS, live/defeated enemies, projectile count, obstacle count, active spawner cap/rate, and process physical/virtual memory usage. CPU utilization is intentionally left to frame-time stats and Unreal Insights because those are more actionable inside Unreal.
+- 2026-06-01: Added `tools/compare_population_telemetry.py` and `docs/PERFORMANCE_VALIDATION.md` as the ongoing regression suite. The script summarizes telemetry by active spawner cap and compares candidate runs against a baseline with default p95 frame-time, memory, and workload thresholds.
+- 2026-06-01: Reviewed initial ramping telemetry from `Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_134238.csv`. The run reached active cap `150` with p95 average frame time `28.85 ms`, under the `33.3 ms` sustained target. This is objective evidence that current ramped play remains acceptable through `150`, but it is not a substitute for the formal fixed `25`/`50`/`75`/`100` matrix.
+- 2026-06-01: Added console variables `bh.SpawnPressure.Enabled` and `bh.PopulationProfile.FixedCap`. For formal fixed-cap trials, set `bh.SpawnPressure.Enabled 0` and `bh.PopulationProfile.FixedCap <cap>` before PIE; restore `bh.SpawnPressure.Enabled 1` and `bh.PopulationProfile.FixedCap 0` for normal ramping play-tests.
+- 2026-06-01: Reviewed formal fixed-cap `75` telemetry from `Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_145802.csv`. The run held cap `75` for `203` samples from `3.0-206.6s`, reached peak live enemies `75`, averaged `67.4 FPS`, recorded p95 average frame time `16.71 ms`, max one-second average frame time `17.35 ms`, worst frame `43.42 ms`, peak projectiles `5`, `18` active obstacles, and peak physical memory `4728.9 MB`. This passes the sustained `33.3 ms` target and is usable as the cap-`75` fixed baseline.
+- 2026-06-01: Reviewed formal fixed-cap `100` telemetry from `Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_150403.csv`. The run held cap `100` for `236` samples from `3.0-239.9s`, reached peak live enemies `100`, averaged `63.9 FPS`, recorded p95 average frame time `20.65 ms`, max one-second average frame time `21.92 ms`, worst frame `53.64 ms`, peak projectiles `5`, `18` active obstacles, and peak physical memory `4892.6 MB`. This passes the sustained `33.3 ms` target and is usable as the cap-`100` fixed baseline.
+- 2026-06-01: Added `tools/telemetry_baselines.json` and `--baseline-profile` / `--latest` options to `tools/compare_population_telemetry.py`, so future task closeout can compare the newest telemetry capture against the accepted cap-`100` baseline with `python3 tools/compare_population_telemetry.py --baseline-profile cap-100-fixed --latest`.
+- 2026-06-01: Added `tools/audit_population_matrix.py` to scan `Saved/Profiling` and report which formal fixed-cap `25`/`50`/`75`/`100` rows are present. The audit accepts only single-cap telemetry files that reach the configured workload threshold, so ramping captures are not mistaken for formal fixed-cap rows.
+- 2026-06-01: Extended `tools/audit_population_matrix.py` with `--next` to print the next missing fixed-cap PIE console setup and `--json` for machine-readable audit output.
 
 ---
 
 ## BH-013: Define Architecture For Hundreds Of Enemies
 
-**Status:** `Blocked` by `BH-009` through `BH-012`
+**Status:** `Blocked` by `BH-009`
 **Priority:** Medium
 **Milestone:** M5: Population Scaling
 **Assets:** Architecture note and prototype assets/code as selected
@@ -171,79 +123,13 @@ Select and validate an architecture suitable for several hundred simultaneous ba
 
 ---
 
-## BH-016: Improve HUD Timer And Kill Stat Visibility
-
-**Status:** `In Progress` - native HUD implementation complete; PIE readability check pending
-**Priority:** High
-**Milestone:** M3: Readable POC
-**Assets:** `BHGameplayHUD.*`
-
-### Goal
-
-Make elapsed time and kill statistics easy to read during combat without distracting from gameplay.
-
-### Scope
-
-- Increase visual prominence of timer and kill count through position, font size, contrast, spacing, or grouping.
-- Preserve health, live-enemy count, and game-over messaging.
-- Keep HUD layout readable across the editor play viewport sizes used for testing.
-
-### Acceptance Criteria
-
-- Timer and kill count are immediately visible during active combat.
-- HUD text has sufficient contrast over the map floor, enemies, and projectile effects.
-- No HUD elements overlap or clip in common PIE viewport sizes.
-
-### Validation
-
-- Rebuild the native target if HUD C++ changes are made.
-- Play-test at normal and crowded enemy counts and verify readability while moving.
-
----
-
-## BH-017: Scale Enemy Spawn Pressure Over Time
-
-**Status:** `Ready`
-**Priority:** High
-**Milestone:** M5: Population Scaling
-**Assets:** `BP_EnemySpawner`, `BHGameplayHUD.*` or elapsed-time provider if needed
-
-### Goal
-
-Increase run pressure by raising `MaxEnemiesAlive` and spawn frequency as elapsed survival time increases.
-
-### Scope
-
-- Define a simple time-based spawn curve or tier table for live-enemy cap and spawn interval.
-- Increase `MaxEnemiesAlive` over time instead of relying on one static cap.
-- Increase spawn frequency over time while preserving a minimum interval that avoids runaway spawning.
-- Keep current defaults suitable for short editor smoke tests.
-
-### Acceptance Criteria
-
-- Enemy pressure clearly ramps during a multi-minute run.
-- Spawn settings remain bounded and inspectable on `BP_EnemySpawner`.
-- The spawner does not exceed the active cap or create unbounded actor accumulation.
-- The ramp design records target caps, intervals, and elapsed-time breakpoints.
-
-### Validation
-
-- Compile/save `BP_EnemySpawner`.
-- Play-test a run long enough to cross at least two spawn-pressure tiers.
-- Record observed peak live-enemy count and any frame-time concerns for `BH-009`.
-
----
-
 ## Recommended Execution Order
 
 | Order | Task | Reason |
 | --- | --- | --- |
-| 1 | `BH-016` | Makes key run metrics readable during normal and crowded play. |
-| 2 | `BH-017` | Adds time-based pressure so population testing reflects a survivor-style run. |
-| 3 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
-| 4 | `BH-011` | Reduces a likely high-cost per-enemy world-widget burden. |
-| 5 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
-| 6 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
+| 1 | `BH-009` | Establishes the measured population ceiling and identifies the first actual bottleneck after basic tuning. |
+| 2 | `BH-012` | Addresses persistent per-enemy Tick, movement, and animation costs based on measured evidence. |
+| 3 | `BH-013` | Selects the architecture required only if the target is several hundred enemies. |
 
 ## Deferred Backlog
 

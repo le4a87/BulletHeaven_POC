@@ -110,6 +110,16 @@ This document preserves completed task summaries that have been rolled out of `T
 - Compiled and saved `BP_Enemy` through the Unreal editor commandlet; the two new material instances were saved and asset validation ran on all three changed assets.
 - Manual PIE validation after restarting Unreal Editor confirmed enemies use the expected walking animation and appear red.
 
+### BH-016: Improve HUD Timer And Kill Stat Visibility
+
+- Completed on 2026-06-01.
+- Updated native `BHGameplayHUD` with viewport-aware panel margins and width so the runtime overlay stays readable across common PIE viewport sizes.
+- Kept timer and kill count as the primary HUD group with larger values, stronger contrast, and consistent spacing.
+- Preserved health, live-enemy count, and game-over messaging; health now also has a compact high-contrast bar inside the panel.
+- Replaced fixed game-over text offsets with measured centered text placement.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- Manual PIE validation on 2026-06-01 confirmed the HUD readability looked good.
+
 ### BH-010: Gate Damage-Text Billboard And Fade Updates
 
 - Completed on 2026-05-29.
@@ -119,6 +129,66 @@ This document preserves completed task summaries that have been rolled out of `T
 - Damage-number update work returns immediately when no floating numbers are active, avoiding camera lookup and per-number billboard processing during the hidden steady state.
 - Built `BulletHeavenPOCEditor` successfully with `-NoHotReload` after the native feedback changes.
 - Initial PIE validation confirmed damage numbers still appeared but exposed duplicate signed values from the old Blueprint presentation path; that presentation issue was resolved by the completed feedback fix below.
+
+### BH-011: Reduce Per-Enemy Health-Bar Widget Cost
+
+- Completed on 2026-06-01.
+- Chose a damaged-only visibility policy for enemy world-space health bars so large groups do not maintain visible/ticking UMG widgets throughout combat.
+- Added native widget visibility management to `BHHealthFeedbackSubsystem`; enemy actors with `CurrentHealth`/`MaxHealth` now have widget components hidden and unticked by default.
+- On enemy damage, the subsystem shows that actor's health bar for `2.5` seconds, then hides and unticks it again.
+- Kept player health feedback unaffected by limiting the policy to actors that expose `CurrentHealth` and `MaxHealth`.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- Manual PIE validation on 2026-06-01 confirmed the damaged-only health-bar behavior looked good.
+- After validation, `BP_EnemySpawner.MaxEnemiesAlive` was manually raised from `50` to `75` for current population testing; formal `BH-009` profiling remains pending.
+
+### BH-012: Reduce Per-Enemy Tick And Character Cost
+
+- Completed on 2026-06-01.
+- Added native `BHEnemyUpdateBudgetSubsystem`, active only on `Map_BulletHeavenPOC`, to apply distance-based update policies to `BP_Enemy` instances without editing the Blueprint graph.
+- Nearby enemies within `2000 cm` keep their original actor, movement, mesh, and animation tick settings.
+- Mid-distance enemies use `0.05 s` actor tick, `0.033 s` movement tick, `0.05 s` mesh tick, and `OnlyTickPoseWhenRendered`; far enemies use `0.12 s` actor tick, `0.08 s` movement tick, `0.15 s` mesh tick, and `OnlyTickPoseWhenRendered`.
+- Added per-enemy skeletal animation rate variation, defaulting to `0.94-1.06`, to break up identical walking gait synchronization without changing movement speed, pathing, collision, or damage pressure.
+- Added console variable `bh.EnemyBudget.Enabled` for A/B profiling and documented the policy in `docs/BH-012_ENEMY_UPDATE_BUDGET.md`.
+- Extended `BHPopulationTelemetrySubsystem` and `tools/compare_population_telemetry.py` with optional `BH-012` columns for budget-enabled samples, near/mid/far budget-band counts, and animation-rate variation count while keeping existing `BH-009` baseline CSVs readable.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- Manual PIE validation on 2026-06-01 confirmed the update-budget and gait-variation pass looked good.
+- Fixed-cap `100` telemetry comparison passed against baseline `Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_150403.csv` using candidate `Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_152150.csv`.
+- Candidate telemetry held cap `100` for `248` samples from `3.0-252.0s`, reached peak live enemies `100`, averaged `65.0 FPS`, recorded p95 average frame time `19.94 ms`, max one-second average frame time `20.55 ms`, worst frame `95.32 ms`, peak projectiles `6`, peak physical memory `4813.5 MB`, budget enabled for all `248` samples, peak budget bands `100/46/21`, and peak animation-rate varied enemies `100`.
+- Compared to the cap-`100` baseline, sustained p95 average frame time improved from `20.65 ms` to `19.94 ms`, max one-second average frame time improved from `21.92 ms` to `20.55 ms`, and peak physical memory decreased from `4892.6 MB` to `4813.5 MB`; no telemetry regressions exceeded thresholds.
+
+### BH-017: Scale Enemy Spawn Pressure Over Time
+
+- Completed on 2026-06-01.
+- Added native `BHSpawnPressureSubsystem`, active only on `Map_BulletHeavenPOC`, to drive the existing `BP_EnemySpawner` without rewriting its Blueprint graph.
+- The subsystem discovers `BP_EnemySpawner`, writes the inspectable `MaxEnemiesAlive` and `SpawnRate` variables, and calls `TrySpawnEnemy` for supplemental pressure after the opening tier.
+- The Blueprint spawner's existing cap check remains the guard against exceeding the active cap.
+- Initial tier table is `0s: cap 75 / 1.00s / no supplemental`, `60s: cap 90 / 0.85s`, `120s: cap 110 / 0.70s`, `180s: cap 130 / 0.60s`, and `240s: cap 150 / 0.50s`.
+- Supplemental native spawn attempts begin at the 60-second tier so short editor smoke tests retain the current opening pressure.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- Manual PIE validation on 2026-06-01 confirmed the spawn pressure ramp looked good.
+
+### BH-019: Add Randomized Cube Obstacles To Combat Map
+
+- Completed on 2026-06-01.
+- Added native `BHObstacleFieldSubsystem`, which spawns a bounded runtime field of cube blockers when `Map_BulletHeavenPOC` begins play.
+- Defaults are `18` obstacles, `2300` cm placement radius, `750` cm player safe radius, `500` cm spawner safe radius, `520` cm minimum spacing, `280` cm footprint, and `240` cm height.
+- The subsystem supports random layouts by default and a deterministic seed mode through config properties.
+- Runtime cubes use `/Engine/BasicShapes/Cube`, block all collision channels, disable overlap generation, and opt out of character step-up.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- No map asset was saved because the obstacle field is spawned at runtime by the subsystem.
+- Manual PIE validation on 2026-06-01 confirmed cubes properly obstruct enemies and enemies path around them as expected.
+- PIE validation also found that player targeting still selects obstructed enemies and projectiles pass through cubes; follow-up task `BH-020` tracks those combat-obstruction fixes.
+
+### BH-020: Make Obstacles Block Targeting And Projectiles
+
+- Completed on 2026-06-01.
+- Added line-of-sight filtering to `BHEnemyRegistrySubsystem::FindNearestEnemy`; candidate enemies are rejected when a `Visibility` trace at combat height hits an actor tagged `BHObstacle`.
+- The targeting trace ignores the player/source actor and candidate enemy, so an unobstructed enemy remains targetable while an obstacle-blocked enemy is skipped.
+- Extended `BHObstacleFieldSubsystem` into a tickable subsystem that tracks `BP_Projectile` movement segments.
+- Added projectile-obstacle traces on the `Visibility` channel; when a projectile movement segment crosses a `BHObstacle`, the projectile is destroyed without applying enemy damage.
+- Preserved existing enemy projectile damage behavior for unobstructed shots.
+- Built `BulletHeavenPOCEditor` successfully with `-NoHotReload`.
+- Manual PIE validation on 2026-06-01 confirmed the targeting and projectile obstruction behavior looked good.
 
 ### BH-018: Prevent Enemy Stacking And Excessive Overlap
 

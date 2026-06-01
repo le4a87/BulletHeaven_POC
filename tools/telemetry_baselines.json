@@ -1,0 +1,22 @@
+{
+  "profiles": {
+    "cap-75-fixed": {
+      "baseline": "Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_145802.csv",
+      "cap": 75,
+      "acceptedAt": "2026-06-01",
+      "notes": "Formal fixed-cap 75 BH-009 baseline before BH-012 enemy update budgeting."
+    },
+    "cap-100-fixed": {
+      "baseline": "Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_152150.csv",
+      "cap": 100,
+      "acceptedAt": "2026-06-01",
+      "notes": "Current accepted cap-100 baseline after BH-012 enemy update budgeting and gait variation passed telemetry comparison."
+    },
+    "cap-100-fixed-pre-bh012": {
+      "baseline": "Saved/Profiling/BH009_UEDPIE_0_Map_BulletHeavenPOC_20260601_150403.csv",
+      "cap": 100,
+      "acceptedAt": "2026-06-01",
+      "notes": "Historical cap-100 fixed baseline before BH-012; retained for before/after analysis."
+    }
+  }
+}

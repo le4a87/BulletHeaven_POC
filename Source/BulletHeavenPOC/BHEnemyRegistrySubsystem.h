@@ -67,5 +67,6 @@ private:
 	void DiscoverEnemies();
 	void PruneInvalidEnemies();
 	void ApplyEnemySeparation(float DeltaTime);
+	bool HasLineOfSightToEnemy(const AActor* SourceActor, const AActor* Enemy) const;
 	static bool IsUsableEnemy(const AActor* Enemy);
 };

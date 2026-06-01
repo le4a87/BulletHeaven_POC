@@ -44,11 +44,15 @@ private:
 	bool TryGetHealth(AActor* Actor, double& OutCurrentHealth, double& OutMaxHealth);
 	static bool TryReadNumericProperty(const AActor* Actor, FName PropertyName, double& OutValue);
 	static void HideBlueprintDamageText(AActor* Actor);
+	static bool IsEnemyHealthActor(AActor* Actor);
+	static void SetActorHealthBarsVisible(AActor* Actor, bool bVisible);
 	void RegisterHealthActors();
+	void UpdateHealthBarVisibility(float DeltaTime);
 	void DrawDamageNumbers(float DeltaTime);
 
 	TSet<TWeakObjectPtr<AActor>> ObservedActors;
 	TMap<TWeakObjectPtr<AActor>, double> InitialHealthByActor;
+	TMap<TWeakObjectPtr<AActor>, float> VisibleHealthBarTimes;
 	TArray<FFloatingDamageNumber> FloatingDamageNumbers;
 	float TimeUntilNextActorScan = 0.0f;
 };

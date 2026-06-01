@@ -45,30 +45,41 @@ void ABHGameplayHUD::DrawHUD()
 		}
 	}
 
-	constexpr float PanelX = 24.0f;
-	constexpr float PanelY = 24.0f;
-	constexpr float PanelWidth = 420.0f;
-	constexpr float PanelHeight = 142.0f;
+	const float ViewWidth = FMath::Max(1.0f, static_cast<float>(Canvas->SizeX));
+	const float Margin = FMath::Clamp(ViewWidth * 0.025f, 12.0f, 24.0f);
+	const float PanelX = Margin;
+	const float PanelY = Margin;
+	const float PanelWidth = FMath::Min(FMath::Max(1.0f, ViewWidth - (Margin * 2.0f)), 460.0f);
+	constexpr float PanelHeight = 176.0f;
 	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.62f), PanelX, PanelY, PanelWidth, PanelHeight);
 	DrawRect(FLinearColor(0.0f, 0.72f, 0.95f, 0.85f), PanelX, PanelY, 5.0f, PanelHeight);
 
-	constexpr float PrimaryX = PanelX + 20.0f;
-	constexpr float PrimaryY = PanelY + 12.0f;
+	const float PrimaryX = PanelX + 20.0f;
+	const float PrimaryY = PanelY + 12.0f;
+	const float StatColumnWidth = (PanelWidth - 64.0f) * 0.5f;
 	DrawPrimaryStat(TEXT("TIME"), FormatElapsedTime(GetElapsedTimeSeconds()), PrimaryX, PrimaryY, 1.9f);
-	DrawPrimaryStat(TEXT("KILLS"), FString::FromInt(KillCount), PrimaryX + 210.0f, PrimaryY, 1.9f);
+	DrawPrimaryStat(TEXT("KILLS"), FString::FromInt(KillCount), PrimaryX + StatColumnWidth + 24.0f, PrimaryY, 1.9f);
 
 	float SecondaryY = PanelY + 92.0f;
-	float LeftY = SecondaryY;
-	float RightY = SecondaryY;
-	DrawGameplayLine(FString::Printf(TEXT("Health: %.0f / %.0f"), CurrentHealth, MaxHealth), PrimaryX, LeftY, FLinearColor::White, 1.0f);
-	DrawGameplayLine(FString::Printf(TEXT("Live Enemies: %d"), LiveEnemyCount), PrimaryX + 210.0f, RightY, FLinearColor::White, 1.0f);
+	DrawGameplayLine(FString::Printf(TEXT("Health: %.0f / %.0f"), CurrentHealth, MaxHealth), PrimaryX, SecondaryY, FLinearColor::White, 1.0f);
+	DrawGameplayLine(FString::Printf(TEXT("Live Enemies: %d"), LiveEnemyCount), PrimaryX, SecondaryY, FLinearColor::White, 1.0f);
+
+	constexpr float HealthBarHeight = 10.0f;
+	const float HealthBarX = PrimaryX;
+	const float HealthBarY = PanelY + PanelHeight - 24.0f;
+	const float HealthBarWidth = PanelWidth - 40.0f;
+	const float HealthPercent = MaxHealth > 0.0
+		? FMath::Clamp(static_cast<float>(CurrentHealth / MaxHealth), 0.0f, 1.0f)
+		: 0.0f;
+	DrawRect(FLinearColor(0.16f, 0.02f, 0.02f, 0.9f), HealthBarX, HealthBarY, HealthBarWidth, HealthBarHeight);
+	DrawRect(FLinearColor(0.0f, 0.78f, 0.36f, 0.95f), HealthBarX, HealthBarY, HealthBarWidth * HealthPercent, HealthBarHeight);
 
 	if (bIsGameOver)
 	{
-		const float CenterX = (Canvas->SizeX * 0.5f) - 125.0f;
+		const float CenterX = ViewWidth * 0.5f;
 		const float CenterY = Canvas->SizeY * 0.42f;
-		DrawReadableText(TEXT("GAME OVER"), FLinearColor::Red, CenterX, CenterY, 2.0f);
-		DrawReadableText(TEXT("Stop PIE or restart the level to try again."), FLinearColor::White, CenterX - 70.0f, CenterY + 42.0f, 1.0f);
+		DrawCenteredReadableText(TEXT("GAME OVER"), FLinearColor::Red, CenterX, CenterY, 2.0f);
+		DrawCenteredReadableText(TEXT("Stop PIE or restart the level to try again."), FLinearColor::White, CenterX, CenterY + 42.0f, 1.0f);
 	}
 }
 
@@ -111,6 +122,14 @@ void ABHGameplayHUD::DrawReadableText(const FString& Text, const FLinearColor& C
 {
 	DrawText(Text, FLinearColor(0.0f, 0.0f, 0.0f, 0.9f), X + 2.0f, Y + 2.0f, nullptr, Scale, false);
 	DrawText(Text, Color, X, Y, nullptr, Scale, false);
+}
+
+void ABHGameplayHUD::DrawCenteredReadableText(const FString& Text, const FLinearColor& Color, float CenterX, float Y, float Scale)
+{
+	float TextWidth = 0.0f;
+	float TextHeight = 0.0f;
+	GetTextSize(Text, TextWidth, TextHeight, nullptr, Scale);
+	DrawReadableText(Text, Color, CenterX - (TextWidth * 0.5f), Y, Scale);
 }
 
 double ABHGameplayHUD::GetNumericProperty(const UObject* Object, FName PropertyName, double DefaultValue)

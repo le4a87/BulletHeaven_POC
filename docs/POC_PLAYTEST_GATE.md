@@ -25,7 +25,7 @@ Use the checked-in defaults unless the test row explicitly says otherwise.
 | Enemy | Move speed | `250` |
 | Enemy | Contact damage | `10` |
 | Spawner | Spawn rate | `1` second |
-| Spawner | Max enemies alive | `50` |
+| Spawner | Max enemies alive | `75` |
 | Spawner | Spawn distance from player | `2400` |
 
 ## Setup

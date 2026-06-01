@@ -2,9 +2,17 @@
 
 #include "BHEnemyRegistrySubsystem.h"
 
+#include "CollisionQueryParams.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+
+namespace BHEnemyRegistry
+{
+	constexpr float TargetTraceHeight = 90.0f;
+	const FName ObstacleTag = TEXT("BHObstacle");
+	const FName TargetLineOfSightTraceTag = TEXT("BH_TargetLineOfSight");
+}
 
 UBHEnemyRegistrySubsystem::UBHEnemyRegistrySubsystem()
 {
@@ -116,7 +124,7 @@ AActor* UBHEnemyRegistrySubsystem::FindNearestEnemy(const AActor* SourceActor)
 		}
 
 		const double DistanceSquared = FVector::DistSquared2D(SourceLocation, Enemy->GetActorLocation());
-		if (DistanceSquared < BestDistanceSquared)
+		if (DistanceSquared < BestDistanceSquared && HasLineOfSightToEnemy(SourceActor, Enemy))
 		{
 			BestDistanceSquared = DistanceSquared;
 			BestEnemy = Enemy;
@@ -250,6 +258,40 @@ void UBHEnemyRegistrySubsystem::ApplyEnemySeparation(float DeltaTime)
 			Enemies[EnemyIndex]->AddActorWorldOffset(Offset.GetClampedToMaxSize(MaxSeparationStep), false);
 		}
 	}
+}
+
+bool UBHEnemyRegistrySubsystem::HasLineOfSightToEnemy(const AActor* SourceActor, const AActor* Enemy) const
+{
+	const UWorld* World = GetWorld();
+	if (!World || !SourceActor || !Enemy)
+	{
+		return false;
+	}
+
+	const FVector TraceStart = SourceActor->GetActorLocation() + FVector(0.0f, 0.0f, BHEnemyRegistry::TargetTraceHeight);
+	const FVector TraceEnd = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, BHEnemyRegistry::TargetTraceHeight);
+
+	FCollisionQueryParams QueryParams(BHEnemyRegistry::TargetLineOfSightTraceTag, false);
+	QueryParams.AddIgnoredActor(SourceActor);
+	QueryParams.AddIgnoredActor(Enemy);
+
+	TArray<FHitResult> Hits;
+	World->LineTraceMultiByChannel(Hits, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+	for (const FHitResult& Hit : Hits)
+	{
+		const AActor* HitActor = Hit.GetActor();
+		if (HitActor && HitActor->ActorHasTag(BHEnemyRegistry::ObstacleTag))
+		{
+			return false;
+		}
+
+		if (Hit.bBlockingHit)
+		{
+			break;
+		}
+	}
+
+	return true;
 }
 
 bool UBHEnemyRegistrySubsystem::IsUsableEnemy(const AActor* Enemy)

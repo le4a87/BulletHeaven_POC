@@ -34,6 +34,7 @@ private:
 	void DrawPrimaryStat(const FString& Label, const FString& Value, float X, float Y, float ValueScale = 1.8f);
 	void DrawGameplayLine(const FString& Text, float X, float& Y, const FLinearColor& Color, float Scale = 1.0f);
 	void DrawReadableText(const FString& Text, const FLinearColor& Color, float X, float Y, float Scale = 1.0f);
+	void DrawCenteredReadableText(const FString& Text, const FLinearColor& Color, float CenterX, float Y, float Scale = 1.0f);
 
 	static double GetNumericProperty(const UObject* Object, FName PropertyName, double DefaultValue);
 	static bool GetBoolProperty(const UObject* Object, FName PropertyName, bool DefaultValue);

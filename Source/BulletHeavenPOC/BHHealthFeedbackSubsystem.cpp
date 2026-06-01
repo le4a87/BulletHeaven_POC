@@ -3,7 +3,9 @@
 #include "BHHealthFeedbackSubsystem.h"
 
 #include "Camera/PlayerCameraManager.h"
+#include "Blueprint/UserWidget.h"
 #include "Components/TextRenderComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Engine/DamageEvents.h"
 #include "Engine/TextRenderActor.h"
 #include "Engine/World.h"
@@ -21,6 +23,7 @@ namespace BHHealthFeedback
 	constexpr float DamageNumberFadeDuration = 0.35f;
 	constexpr float DamageNumberRiseSpeed = 55.0f;
 	constexpr float DamageNumberTextSize = 42.0f;
+	constexpr float DamagedHealthBarVisibleDuration = 2.5f;
 
 	FText FormatDamageText(float Damage)
 	{
@@ -48,6 +51,7 @@ void UBHHealthFeedbackSubsystem::Deinitialize()
 
 	ObservedActors.Empty();
 	InitialHealthByActor.Empty();
+	VisibleHealthBarTimes.Empty();
 	for (FFloatingDamageNumber& Number : FloatingDamageNumbers)
 	{
 		if (ATextRenderActor* TextActor = Number.TextActor.Get())
@@ -76,6 +80,7 @@ void UBHHealthFeedbackSubsystem::Tick(float DeltaTime)
 	}
 
 	DrawDamageNumbers(DeltaTime);
+	UpdateHealthBarVisibility(DeltaTime);
 }
 
 void UBHHealthFeedbackSubsystem::RegisterHealthActors()
@@ -96,6 +101,10 @@ void UBHHealthFeedbackSubsystem::RegisterHealthActors()
 			continue;
 		}
 		HideBlueprintDamageText(Actor);
+		if (IsEnemyHealthActor(Actor) && !VisibleHealthBarTimes.Contains(Actor))
+		{
+			SetActorHealthBarsVisible(Actor, false);
+		}
 
 		const TWeakObjectPtr<AActor> ActorPtr(Actor);
 		if (!ObservedActors.Contains(ActorPtr))
@@ -124,6 +133,11 @@ void UBHHealthFeedbackSubsystem::HandleActorDamaged(
 	}
 
 	HideBlueprintDamageText(DamagedActor);
+	if (IsEnemyHealthActor(DamagedActor))
+	{
+		VisibleHealthBarTimes.FindOrAdd(DamagedActor) = BHHealthFeedback::DamagedHealthBarVisibleDuration;
+		SetActorHealthBarsVisible(DamagedActor, true);
+	}
 
 	for (int32 Index = FloatingDamageNumbers.Num() - 1; Index >= 0; --Index)
 	{
@@ -278,6 +292,69 @@ void UBHHealthFeedbackSubsystem::HideBlueprintDamageText(AActor* Actor)
 			TextComponent->SetHiddenInGame(true);
 			TextComponent->SetVisibility(false, true);
 		}
+	}
+}
+
+bool UBHHealthFeedbackSubsystem::IsEnemyHealthActor(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return false;
+	}
+
+	double CurrentHealth = 0.0;
+	double MaxHealth = 0.0;
+	return TryReadNumericProperty(Actor, TEXT("CurrentHealth"), CurrentHealth)
+		&& TryReadNumericProperty(Actor, TEXT("MaxHealth"), MaxHealth)
+		&& MaxHealth > 0.0;
+}
+
+void UBHHealthFeedbackSubsystem::SetActorHealthBarsVisible(AActor* Actor, bool bVisible)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	TArray<UWidgetComponent*> WidgetComponents;
+	Actor->GetComponents(WidgetComponents);
+	for (UWidgetComponent* WidgetComponent : WidgetComponents)
+	{
+		if (!WidgetComponent)
+		{
+			continue;
+		}
+
+		WidgetComponent->SetHiddenInGame(!bVisible);
+		WidgetComponent->SetVisibility(bVisible, true);
+		WidgetComponent->SetComponentTickEnabled(bVisible);
+		if (UUserWidget* Widget = WidgetComponent->GetWidget())
+		{
+			Widget->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+void UBHHealthFeedbackSubsystem::UpdateHealthBarVisibility(float DeltaTime)
+{
+	for (auto It = VisibleHealthBarTimes.CreateIterator(); It; ++It)
+	{
+		AActor* Actor = It.Key().Get();
+		if (!IsValid(Actor) || Actor->IsActorBeingDestroyed())
+		{
+			It.RemoveCurrent();
+			continue;
+		}
+
+		float& RemainingTime = It.Value();
+		RemainingTime -= DeltaTime;
+		if (RemainingTime > 0.0f)
+		{
+			continue;
+		}
+
+		SetActorHealthBarsVisible(Actor, false);
+		It.RemoveCurrent();
 	}
 }
 
